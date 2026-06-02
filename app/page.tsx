@@ -97,148 +97,6 @@ export default function Dashboard() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Parse config nodes and selection list states
-  interface ConfigNode {
-    id: string;
-    originalRemark: string;
-    currentRemark: string;
-    protocol: string;
-    isSelected: boolean;
-    raw: string | any;
-  }
-
-  const [parsedConfigs, setParsedConfigs] = useState<ConfigNode[]>([]);
-  const [batchTemplate, setBatchTemplate] = useState("Proxy *");
-  const [nodeFilter, setNodeFilter] = useState("");
-
-  const parseCurrentConfigs = (text: string) => {
-    try {
-      const items = extractConfigsList(text);
-      const parsed = items.map((item, idx) => {
-        let originalRemark = "";
-        let protocol = "vpn";
-        
-        if (typeof item === "string") {
-          const trimmed = item.trim();
-          if (trimmed.startsWith("vmess://")) {
-            protocol = "vmess";
-            try {
-              const decoded = Buffer.from(trimmed.substring(8), "base64").toString("utf-8");
-              const json = JSON.parse(decoded);
-              originalRemark = json.ps || `Server ${idx + 1}`;
-            } catch {
-              originalRemark = `Server ${idx + 1}`;
-            }
-          } else if (trimmed.startsWith("vless://")) {
-            protocol = "vless";
-            const hashIndex = trimmed.indexOf("#");
-            if (hashIndex !== -1) {
-              try { originalRemark = decodeURIComponent(trimmed.substring(hashIndex + 1)); } catch { originalRemark = trimmed.substring(hashIndex + 1); }
-            } else { originalRemark = `Server ${idx + 1}`; }
-          } else if (trimmed.startsWith("trojan://")) {
-            protocol = "trojan";
-            const hashIndex = trimmed.indexOf("#");
-            if (hashIndex !== -1) {
-              try { originalRemark = decodeURIComponent(trimmed.substring(hashIndex + 1)); } catch { originalRemark = trimmed.substring(hashIndex + 1); }
-            } else { originalRemark = `Server ${idx + 1}`; }
-          } else if (trimmed.startsWith("ss://")) {
-            protocol = "ss";
-            const hashIndex = trimmed.indexOf("#");
-            if (hashIndex !== -1) {
-              try { originalRemark = decodeURIComponent(trimmed.substring(hashIndex + 1)); } catch { originalRemark = trimmed.substring(hashIndex + 1); }
-            } else { originalRemark = `Server ${idx + 1}`; }
-          }
-        } else if (item && typeof item === "object") {
-          protocol = item.outbounds?.[0]?.protocol || "json";
-          originalRemark = item.remarks || item.ps || `Server ${idx + 1}`;
-        }
-
-        if (!originalRemark) {
-          originalRemark = `Server ${idx + 1}`;
-        }
-        
-        return {
-          id: generateUniqueId(`node_${idx}`),
-          originalRemark,
-          currentRemark: originalRemark,
-          protocol,
-          isSelected: true,
-          raw: item
-        };
-      });
-      setParsedConfigs(parsed);
-    } catch (err) {
-      console.error("Failed to parse config remarks:", err);
-    }
-  };
-
-  const syncRemarksToTextarea = (nodes: ConfigNode[]) => {
-    const isJsonArray = editJsonConfigs.trim().startsWith("[");
-    
-    const updatedRawList = nodes.map((node) => {
-      const remark = node.currentRemark;
-      if (typeof node.raw === "string") {
-        return updateConfigRemark(node.raw, remark);
-      } else if (node.raw && typeof node.raw === "object") {
-        const cloned = JSON.parse(JSON.stringify(node.raw));
-        cloned.remarks = remark;
-        return cloned;
-      }
-      return node.raw;
-    });
-
-    let newTextValue = "";
-    if (isJsonArray) {
-      newTextValue = JSON.stringify(updatedRawList, null, 2);
-    } else {
-      newTextValue = updatedRawList.map(item => {
-        if (typeof item === "string") return item;
-        return JSON.stringify(item);
-      }).join("\n");
-    }
-    
-    setEditJsonConfigs(newTextValue);
-  };
-
-  const handleIndividualRemarkChange = (nodeId: string, val: string) => {
-    const updatedNodes = parsedConfigs.map((node) => {
-      if (node.id === nodeId) {
-        return { ...node, currentRemark: val };
-      }
-      return node;
-    });
-    setParsedConfigs(updatedNodes);
-    syncRemarksToTextarea(updatedNodes);
-  };
-
-  const handleBatchRenameSelected = () => {
-    let indexCount = 1;
-    const updatedNodes = parsedConfigs.map((node) => {
-      if (node.isSelected) {
-        const remarkName = batchTemplate.includes("*")
-          ? batchTemplate.replaceAll("*", String(indexCount))
-          : `${batchTemplate} ${indexCount}`;
-        indexCount++;
-        return { ...node, currentRemark: remarkName };
-      }
-      return node;
-    });
-    setParsedConfigs(updatedNodes);
-    syncRemarksToTextarea(updatedNodes);
-    showToast(`Batch renamed selected nodes utilizing template rule: ${batchTemplate}`);
-  };
-
-  // Handler to toggle selections
-  const handleToggleSelectNode = (nodeId: string) => {
-    const updated = parsedConfigs.map(n => n.id === nodeId ? { ...n, isSelected: !n.isSelected } : n);
-    setParsedConfigs(updated);
-  };
-
-  const handleToggleSelectAll = (checked: boolean) => {
-    const updated = parsedConfigs.map(n => ({ ...n, isSelected: checked }));
-    setParsedConfigs(updated);
-  };
-
   const showToast = (text: string, type: "success" | "error" | "info" = "success") => {
     setToastMessage({ text, type });
     setTimeout(() => {
@@ -253,7 +111,6 @@ export default function Dashboard() {
     setEditRemarksTemplate(sub.remarksTemplate || "Server *");
     setEditJsonConfigs(sub.jsonConfigs || "");
     setEditDummyConfigs(sub.dummyConfigs || []);
-    parseCurrentConfigs(sub.jsonConfigs || "");
   };
 
   const fetchSubscriptions = async () => {
@@ -274,7 +131,6 @@ export default function Dashboard() {
           setEditRemarksTemplate(first.remarksTemplate || "Server *");
           setEditJsonConfigs(first.jsonConfigs || "");
           setEditDummyConfigs(first.dummyConfigs || []);
-          parseCurrentConfigs(first.jsonConfigs || "");
         }
       }
     } catch (err: any) {
@@ -304,7 +160,6 @@ export default function Dashboard() {
             setEditRemarksTemplate(first.remarksTemplate || "Server *");
             setEditJsonConfigs(first.jsonConfigs || "");
             setEditDummyConfigs(first.dummyConfigs || []);
-            parseCurrentConfigs(first.jsonConfigs || "");
           }
         }
         setIsRefreshing(false);
@@ -485,7 +340,6 @@ export default function Dashboard() {
       const text = event.target?.result as string;
       if (text) {
         setEditJsonConfigs(text);
-        parseCurrentConfigs(text);
         showToast(`Loaded ${file.name} successfully! We parsed ${extractConfigsList(text).length} raw configurations.`, "success");
       }
     };
@@ -1071,169 +925,6 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-
-              {/* SECTION 3.5: INTERACTIVE CONFIG NODE CHECKLIST & RENAMER */}
-              {parsedConfigs.length > 0 && (
-                <div id="section_interactive_renamer" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
-                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <Edit className="h-5 w-5 text-teal-400 shrink-0" />
-                      <h3 className="text-sm font-semibold text-white tracking-wide flex items-center gap-1.5">
-                        Interactive Config Remark Customizer
-                        <span className="text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20 rounded-full px-2 py-0.5 font-bold font-mono">
-                          {parsedConfigs.length} Nodes
-                        </span>
-                      </h3>
-                    </div>
-                    <span className="text-[10px] text-teal-400 bg-teal-500/10 border border-teal-500/20 px-2 py-0.5 rounded font-mono font-bold tracking-wider">
-                      AUTO SYNC ACTIVE
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Check the servers you want to rename in batch, or edit their names individual-by-individual. Any changes update the raw subscription config immediately!
-                  </p>
-
-                  {/* Batch Actions Wrapper */}
-                  <div className="bg-slate-900 border border-slate-800 p-4.5 rounded-xl space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide">
-                          ⚙️ Batch Renaming Tool
-                        </h4>
-                        <p className="text-[10.5px] text-slate-400 mt-0.5">
-                          Applies standard prefix patterns to checked nodes. Enter <code className="bg-slate-950 px-1 py-0.2 rounded text-sky-400 font-bold">*</code> for sequential counting numbers.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2.5 self-end sm:self-auto select-none">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleSelectAll(true)}
-                          className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition underline cursor-pointer"
-                        >
-                          Select All
-                        </button>
-                        <span className="text-slate-700 text-xs">|</span>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleSelectAll(false)}
-                          className="text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition underline cursor-pointer"
-                        >
-                          Deselect All
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      <div className="flex-1 min-w-[200px]">
-                        <input
-                          type="text"
-                          value={batchTemplate}
-                          onChange={(e) => setBatchTemplate(e.target.value)}
-                          placeholder="VIP Server - *"
-                          className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-mono focus:outline-none focus:border-sky-500 font-medium"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleBatchRenameSelected}
-                        disabled={parsedConfigs.filter(n => n.isSelected).length === 0}
-                        className="px-4 py-2 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer shadow-md disabled:cursor-not-allowed"
-                      >
-                        Apply Batch Remapping to ({parsedConfigs.filter(n => n.isSelected).length}) Selected
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Node Listing Checklist */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-4">
-                      <span className="text-[11px] font-mono uppercase font-bold text-slate-400 tracking-wider">
-                        Configuration Name & Protocol List
-                      </span>
-                      <div className="w-56 shrink-0">
-                        <input
-                          type="text"
-                          value={nodeFilter}
-                          onChange={(e) => setNodeFilter(e.target.value)}
-                          placeholder="🔍 Search detected names..."
-                          className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="border border-slate-800/80 rounded-xl overflow-hidden max-h-[350px] overflow-y-auto bg-slate-900/40 divide-y divide-slate-850">
-                      <table className="w-full text-left border-collapse table-fixed">
-                        <thead>
-                          <tr className="bg-slate-950 font-mono text-[10px] text-slate-400 border-b border-slate-800 uppercase tracking-wider select-none">
-                            <th className="py-2 px-3 w-10 text-center">Sel</th>
-                            <th className="py-2 px-1 w-12 text-center">No</th>
-                            <th className="py-2 px-1 w-16 text-center">Proto</th>
-                            <th className="py-2 px-4 w-5/12">Original Remark in Config</th>
-                            <th className="py-2 px-4 w-7/12">Customized Active Remark</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-850/60">
-                          {parsedConfigs
-                            .filter(node => 
-                              !nodeFilter ||
-                              node.originalRemark.toLowerCase().includes(nodeFilter.toLowerCase()) ||
-                              node.currentRemark.toLowerCase().includes(nodeFilter.toLowerCase())
-                            )
-                            .map((node, i) => {
-                              const isRenamed = node.originalRemark !== node.currentRemark;
-                              return (
-                                <tr key={node.id} className="hover:bg-slate-900/60 transition-colors">
-                                  <td className="py-2.5 px-3 text-center">
-                                    <input
-                                      type="checkbox"
-                                      checked={node.isSelected}
-                                      onChange={() => handleToggleSelectNode(node.id)}
-                                      className="rounded border-slate-700 text-sky-500 focus:ring-sky-500 h-3.5 w-3.5 bg-slate-950 cursor-pointer"
-                                    />
-                                  </td>
-                                  <td className="py-2.5 px-1 text-center text-[10px] font-mono text-slate-500">
-                                    #{i + 1}
-                                  </td>
-                                  <td className="py-2.5 px-1 text-center">
-                                    <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-mono tracking-wider font-bold ${
-                                      node.protocol === "vless" ? "bg-cyan-500/10 text-cyan-400 border border-cyan-500/25" :
-                                      node.protocol === "vmess" ? "bg-violet-500/10 text-violet-400 border border-violet-500/25" :
-                                      node.protocol === "trojan" ? "bg-amber-500/10 text-amber-400 border border-amber-500/25" :
-                                      node.protocol === "ss" ? "bg-pink-500/10 text-pink-400 border border-pink-500/25" :
-                                      "bg-slate-850 text-slate-400 border border-slate-805"
-                                    }`}>
-                                      {node.protocol}
-                                    </span>
-                                  </td>
-                                  <td className="py-2.5 px-4 text-xs font-semibold text-slate-400 truncate" title={node.originalRemark}>
-                                    {node.originalRemark}
-                                  </td>
-                                  <td className="py-2.5 px-4">
-                                    <div className="flex items-center gap-2">
-                                      <input
-                                        type="text"
-                                        value={node.currentRemark}
-                                        onChange={(e) => handleIndividualRemarkChange(node.id, e.target.value)}
-                                        className="w-full px-2.5 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-teal-500 font-mono transition-all font-medium"
-                                        placeholder="Customize name..."
-                                      />
-                                      {isRenamed && (
-                                        <span className="text-[9px] shrink-0 text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-mono font-bold animate-pulse">
-                                          Renamed
-                                        </span>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
 
 
               {/* SECTION: 4. SHADOW / DUMMY ANNOUNCEMENTS DATA */}

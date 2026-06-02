@@ -287,6 +287,13 @@ export function buildDummyConfigLink(dummy: DummyConfig): string {
  * Handles processing of subscriptions in both share links formats and raw updated JSON arrays.
  */
 export function generateProcessedSubscription(sub: Subscription, format: "links" | "json" = "links"): string {
+  if (format === "json") {
+    const trimmed = (sub.jsonConfigs || "").trim();
+    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+      return trimmed;
+    }
+  }
+
   const configsList = extractConfigsList(sub.jsonConfigs);
   const template = sub.remarksTemplate || "Server *";
 
