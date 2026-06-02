@@ -23,7 +23,7 @@ export async function GET(
     }
 
     const { searchParams } = new URL(req.url);
-    const format = searchParams.get("format") === "json" ? "json" : "links";
+    const format = searchParams.get("format") === "links" ? "links" : "json";
     const isRaw = searchParams.get("raw") === "true" || searchParams.get("flag") === "raw";
 
     const resultText = generateProcessedSubscription(sub, format);

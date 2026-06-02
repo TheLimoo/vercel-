@@ -108,7 +108,7 @@ export default function Dashboard() {
     setSelectedSubId(sub.id);
     setEditName(sub.name);
     setEditPath(sub.path);
-    setEditRemarksTemplate(sub.remarksTemplate || "Server *");
+    setEditRemarksTemplate(sub.remarksTemplate !== undefined ? sub.remarksTemplate : "Server *");
     setEditJsonConfigs(sub.jsonConfigs || "");
     setEditDummyConfigs(sub.dummyConfigs || []);
   };
@@ -128,7 +128,7 @@ export default function Dashboard() {
           setSelectedSubId(first.id);
           setEditName(first.name);
           setEditPath(first.path);
-          setEditRemarksTemplate(first.remarksTemplate || "Server *");
+          setEditRemarksTemplate(first.remarksTemplate !== undefined ? first.remarksTemplate : "Server *");
           setEditJsonConfigs(first.jsonConfigs || "");
           setEditDummyConfigs(first.dummyConfigs || []);
         }
@@ -157,7 +157,7 @@ export default function Dashboard() {
             setSelectedSubId(first.id);
             setEditName(first.name);
             setEditPath(first.path);
-            setEditRemarksTemplate(first.remarksTemplate || "Server *");
+            setEditRemarksTemplate(first.remarksTemplate !== undefined ? first.remarksTemplate : "Server *");
             setEditJsonConfigs(first.jsonConfigs || "");
             setEditDummyConfigs(first.dummyConfigs || []);
           }
@@ -753,10 +753,10 @@ export default function Dashboard() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                        Standard Client Subscription URL (Base64 Links)
+                        Default JSON Subscription Feed (Raw Config Objects - Default)
                       </span>
                       <span className="text-[10px] text-teal-400 bg-teal-500/10 border border-teal-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                        Links Feed
+                        JSON Feed
                       </span>
                     </div>
 
@@ -776,7 +776,7 @@ export default function Dashboard() {
                         </button>
 
                         <a
-                          href={`/sub/${editPath}?raw=true`}
+                          href={`/sub/${editPath}`}
                           target="_blank"
                           rel="noreferrer"
                           className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
@@ -794,33 +794,33 @@ export default function Dashboard() {
                     <div className="pt-2 border-t border-slate-800/80">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                          Raw JSON Subscription URL (Raw Config Objects)
+                          Legacy Base64 Links Feed (Standard client subscription compatible)
                         </span>
                         <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                          JSON Feed
+                          Links Feed
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
-                          {`${appOrigin}/sub/${editPath}?format=json`}
+                          {`${appOrigin}/sub/${editPath}?format=links`}
                         </div>
                         
                         <button
                           id="copy_sub_json_link_btn"
-                          onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}?format=json`, "json_format")}
+                          onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}?format=links`, "json_format")}
                           className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
-                          title="Copy JSON subscription address"
+                          title="Copy Base64 subscription address"
                         >
                           {copiedLink === "json_format" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
                         </button>
 
                         <a
-                          href={`/sub/${editPath}?format=json`}
+                          href={`/sub/${editPath}?format=links`}
                           target="_blank"
                           rel="noreferrer"
                           className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                          title="View output JSON configs"
+                          title="View output Base64 Links"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </a>
@@ -863,10 +863,10 @@ export default function Dashboard() {
                         Every parsed config will assume this pattern. If you insert an asterisk <strong className="text-sky-400">*</strong> into the text, the server automatically computes and places serial numbers in sequence!
                       </p>
                       <div className="text-[11px] font-mono text-slate-400 flex flex-wrap items-center gap-4">
-                        <span>💡 Example with template <strong>{editRemarksTemplate || "Server-*"}</strong>:</span>
-                        <span className="text-teal-400">#1: {editRemarksTemplate.replace("*", "1")}</span>
-                        <span className="text-teal-400">#2: {editRemarksTemplate.replace("*", "2")}</span>
-                        <span className="text-teal-400">#3: {editRemarksTemplate.replace("*", "3")}</span>
+                        <span>💡 Example with template <strong>{editRemarksTemplate || "Server *"}</strong>:</span>
+                        <span className="text-teal-400 font-semibold">#1: {(editRemarksTemplate || "Server *").includes("*") ? (editRemarksTemplate || "Server *").replaceAll("*", "1") : `${editRemarksTemplate || "Server *"} 1`}</span>
+                        <span className="text-teal-400 font-semibold">#2: {(editRemarksTemplate || "Server *").includes("*") ? (editRemarksTemplate || "Server *").replaceAll("*", "2") : `${editRemarksTemplate || "Server *"} 2`}</span>
+                        <span className="text-teal-400 font-semibold">#3: {(editRemarksTemplate || "Server *").includes("*") ? (editRemarksTemplate || "Server *").replaceAll("*", "3") : `${editRemarksTemplate || "Server *"} 3`}</span>
                       </div>
                     </div>
                   </div>

@@ -293,7 +293,7 @@ export function generateProcessedSubscription(sub: Subscription, format: "links"
   if (isJson) {
     try {
       const parsed = JSON.parse(trimmed);
-      const template = sub.remarksTemplate || "Server *";
+      const template = (sub.remarksTemplate && sub.remarksTemplate.trim()) ? sub.remarksTemplate : "Server *";
 
       // 1. Create dummy configs in JSON format
       const dummyNodes = (sub.dummyConfigs || []).map(dummy => ({
@@ -392,7 +392,7 @@ export function generateProcessedSubscription(sub: Subscription, format: "links"
   }
 
   const configsList = extractConfigsList(sub.jsonConfigs);
-  const template = sub.remarksTemplate || "Server *";
+  const template = (sub.remarksTemplate && sub.remarksTemplate.trim()) ? sub.remarksTemplate : "Server *";
 
   // Process item remarks and formats
   const processedConfigs = configsList.map((item, index) => {
