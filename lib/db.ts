@@ -1,98 +1,95 @@
-import fs from "fs";
-import path from "path";
+import { createClient } from "@libsql/client";
 
-const LOCAL_STORE_PATH = path.join(process.cwd(), "v2ray_kv_store.json");
+let clientInstance: ReturnType<typeof createClient> | null = null;
+let isTableEnsured = false;
+
+function getClient() {
+  if (clientInstance) return clientInstance;
+
+  const url = process.env.TURSO_DATABASE_URL || "file:v2ray_local.db";
+  const authToken = process.env.TURSO_AUTH_TOKEN || "";
+
+  clientInstance = createClient({
+    url,
+    authToken,
+  });
+  
+  return clientInstance;
+}
+
+async function ensureTable() {
+  if (isTableEnsured) return;
+  const client = getClient();
+  try {
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS kv_store (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    `);
+    isTableEnsured = true;
+  } catch (err) {
+    console.error("Failed to initialize kv_store table in Turso/SQLite:", err);
+  }
+}
 
 // Define high-level database helper
 export async function getKV<T>(key: string): Promise<T | null> {
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
-
-  if (url && token) {
-    try {
-      // Connect to Vercel KV / Upstash Redis via standard REST API
-      const response = await fetch(`${url}/get/${key}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Vercel KV HTTP error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      if (data.result === null || data.result === undefined) {
-        return null;
-      }
-
-      // Vercel KV stores stringified JSON if we save objects, parse if valid string
-      try {
-        return JSON.parse(data.result) as T;
-      } catch {
-        return data.result as T;
-      }
-    } catch (err) {
-      console.error("Vercel KV failed, pulling from local storage: ", err);
-    }
-  }
-
-  // Fallback to local file filesystem storage
   try {
-    if (fs.existsSync(LOCAL_STORE_PATH)) {
-      const content = fs.readFileSync(LOCAL_STORE_PATH, "utf-8");
-      const store = JSON.parse(content);
-      return (store[key] as T) || null;
+    await ensureTable();
+    const client = getClient();
+    const res = await client.execute({
+      sql: "SELECT value FROM kv_store WHERE key = ?",
+      args: [key],
+    });
+
+    if (res.rows.length === 0) {
+      return null;
     }
+
+    const rawValue = res.rows[0].value;
+    if (rawValue === null || rawValue === undefined) {
+      return null;
+    }
+
+    const strValue = String(rawValue);
+
+    // Parse back if it looks like a stringified JSON object or array, otherwise return as string
+    try {
+      if ((strValue.startsWith("{") && strValue.endsWith("}")) || (strValue.startsWith("[") && strValue.endsWith("]"))) {
+        return JSON.parse(strValue) as T;
+      }
+    } catch {
+      // Return as text if parse fails
+    }
+
+    return strValue as unknown as T;
   } catch (err) {
-    console.error("Local store read failed:", err);
+    console.error(`getKV failed for key "${key}":`, err);
+    return null;
   }
-  return null;
 }
 
 export async function setKV<T>(key: string, value: T): Promise<void> {
-  const url = process.env.KV_REST_API_URL;
-  const token = process.env.KV_REST_API_TOKEN;
-
-  const valueStr = typeof value === "string" ? value : JSON.stringify(value);
-
-  if (url && token) {
-    try {
-      // Vercel KV Set Command via POST REST API on /set/key
-      const response = await fetch(`${url}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(["set", key, valueStr]),
-      });
-
-      if (response.ok) {
-        return;
-      }
-      console.warn("Vercel KV Set via POST status:", response.status);
-    } catch (err) {
-      console.error("Vercel KV save failed, falling back to local file:", err);
-    }
-  }
-
-  // Fallback / Local persistent File Storage
   try {
-    let store: Record<string, any> = {};
-    if (fs.existsSync(LOCAL_STORE_PATH)) {
-      try {
-        const content = fs.readFileSync(LOCAL_STORE_PATH, "utf-8");
-        store = JSON.parse(content);
-      } catch {
-        store = {};
-      }
+    await ensureTable();
+    const client = getClient();
+
+    let valueStr: string;
+    if (value === null || value === undefined) {
+      valueStr = "";
+    } else if (typeof value === "string") {
+      valueStr = value;
+    } else {
+      valueStr = JSON.stringify(value);
     }
-    store[key] = value;
-    fs.writeFileSync(LOCAL_STORE_PATH, JSON.stringify(store, null, 2), "utf-8");
+
+    await client.execute({
+      sql: "INSERT INTO kv_store (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      args: [key, valueStr],
+    });
   } catch (err) {
-    console.error("Local store write failed:", err);
+    console.error(`setKV failed for key "${key}":`, err);
     throw err;
   }
 }
