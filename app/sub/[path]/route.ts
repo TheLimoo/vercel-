@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getKV } from "@/lib/db";
-import { Subscription, generateProcessedSubscriptionText } from "@/lib/v2ray";
+import { Subscription, generateProcessedSubscription } from "@/lib/v2ray";
 
 const SUBS_DB_KEY = "v2ray_subscriptions_list";
 
@@ -22,15 +22,24 @@ export async function GET(
       return new NextResponse("Subscription configuration not found.", { status: 404 });
     }
 
-    // Generate plain-text subscription output
-    const plainText = generateProcessedSubscriptionText(sub);
-
-    // Support debug url flag '?raw=true' or '?flag=raw' to easily inspect contents
     const { searchParams } = new URL(req.url);
+    const format = searchParams.get("format") === "json" ? "json" : "links";
     const isRaw = searchParams.get("raw") === "true" || searchParams.get("flag") === "raw";
 
+    const resultText = generateProcessedSubscription(sub, format);
+
+    if (format === "json") {
+      return new NextResponse(resultText, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      });
+    }
+
     if (isRaw) {
-      return new NextResponse(plainText, {
+      return new NextResponse(resultText, {
         status: 200,
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
@@ -40,8 +49,8 @@ export async function GET(
       });
     }
 
-    // Default: Encode in standard client Base64
-    const base64Value = Buffer.from(plainText, "utf-8").toString("base64");
+    // Default: Encode in standard client Base64 for links standard feed
+    const base64Value = Buffer.from(resultText, "utf-8").toString("base64");
 
     return new NextResponse(base64Value, {
       status: 200,

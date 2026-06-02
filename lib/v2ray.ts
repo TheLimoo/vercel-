@@ -20,7 +20,7 @@ export interface Subscription {
 /**
  * Normalizes input text which might be a JSON list or plaintext newline-separated list of configs.
  */
-export function extractConfigsList(rawInput: string): string[] {
+export function extractConfigsList(rawInput: string): (string | any)[] {
   if (!rawInput || !rawInput.trim()) return [];
 
   const trimmed = rawInput.trim();
@@ -30,22 +30,44 @@ export function extractConfigsList(rawInput: string): string[] {
     const data = JSON.parse(trimmed);
     if (Array.isArray(data)) {
       return data.flatMap(item => {
+        if (!item) return [];
         if (typeof item === "string") return [item];
-        if (item && typeof item === "object") {
-          // Check for common properties like url, config, path
-          const possible = item.url || item.config || item.link || item.ps || "";
+        if (typeof item === "object") {
+          // Check if it's a share link nested inside a simple field
+          const possible = item.url || item.config || item.link || "";
           if (possible && typeof possible === "string" && possible.includes("://")) {
             return [possible];
+          }
+          // Otherwise, if it has standard properties of a V2Ray JSON config, treat as config object
+          if (item.remarks || item.outbounds || item.inbounds) {
+            return [item];
           }
         }
         return [];
       });
     } else if (data && typeof data === "object") {
-      // Look for a config array inside standard keys
+      // Check if it's a single raw config object instead of an array
+      if (data.remarks || data.outbounds || data.inbounds) {
+        return [data];
+      }
+      // Look for standard arrays inside config wrapper
       const possibleArrays = [data.configs, data.nodes, data.servers, data.proxies, data.links];
       for (const arr of possibleArrays) {
         if (Array.isArray(arr)) {
-          return arr.map(x => (typeof x === "string" ? x : x.url || x.config || x.link || "")).filter(Boolean);
+          return arr.flatMap(x => {
+            if (!x) return [];
+            if (typeof x === "string") return [x];
+            if (typeof x === "object") {
+              const possible = x.url || x.config || x.link || "";
+              if (possible && typeof possible === "string" && possible.includes("://")) {
+                return [possible];
+              }
+              if (x.remarks || x.outbounds || x.inbounds) {
+                return [x];
+              }
+            }
+            return [];
+          });
         }
       }
     }
@@ -58,6 +80,144 @@ export function extractConfigsList(rawInput: string): string[] {
     .split(/\r?\n/)
     .map(line => line.trim())
     .filter(line => line && (line.includes("://") || line.length > 20));
+}
+
+/**
+ * Converts a V2Ray/Xray JSON configuration object into its equivalent share link structure.
+ */
+export function convertJsonConfigToShareLink(obj: any): string {
+  try {
+    if (!obj || typeof obj !== "object") return "";
+    const remark = obj.remarks || "Config";
+    
+    // Locate the first non-direct protocol outbound
+    const outbounds = obj.outbounds || [];
+    const proxyOutbound = outbounds.find((o: any) => 
+      o && (o.protocol === "vless" || o.protocol === "vmess" || o.protocol === "trojan" || o.protocol === "shadowsocks" || o.protocol === "ss")
+    ) || outbounds[0];
+
+    if (!proxyOutbound) return "";
+
+    const protocol = proxyOutbound.protocol;
+    
+    if (protocol === "vless") {
+      const vnext = proxyOutbound.settings?.vnext?.[0];
+      if (!vnext) return "";
+      const address = vnext.address;
+      const port = vnext.port;
+      const user = vnext.users?.[0];
+      const id = user?.id;
+      const encryption = user?.encryption || "none";
+
+      const streamSettings = proxyOutbound.streamSettings || {};
+      const network = streamSettings.network || "tcp";
+      const security = streamSettings.security || "none";
+
+      const queryParams: string[] = [];
+      queryParams.push(`encryption=${encryption}`);
+      queryParams.push(`security=${security}`);
+      queryParams.push(`type=${network}`);
+
+      if (security === "tls") {
+        const tlsSettings = streamSettings.tlsSettings || {};
+        if (tlsSettings.serverName) {
+          queryParams.push(`sni=${tlsSettings.serverName}`);
+        }
+      }
+
+      if (network === "ws") {
+        const wsSettings = streamSettings.wsSettings || {};
+        if (wsSettings.host) {
+          queryParams.push(`host=${wsSettings.host}`);
+        }
+        if (wsSettings.path) {
+          queryParams.push(`path=${encodeURIComponent(wsSettings.path)}`);
+        }
+      } else if (network === "grpc") {
+        const grpcSettings = streamSettings.grpcSettings || {};
+        if (grpcSettings.serviceName) {
+          queryParams.push(`serviceName=${encodeURIComponent(grpcSettings.serviceName)}`);
+        }
+      }
+
+      const queryStr = queryParams.length > 0 ? `?${queryParams.join("&")}` : "";
+      return `vless://${id}@${address}:${port}${queryStr}#${encodeURIComponent(remark)}`;
+    }
+
+    if (protocol === "vmess") {
+      const vnext = proxyOutbound.settings?.vnext?.[0];
+      if (!vnext) return "";
+      const address = vnext.address;
+      const port = vnext.port;
+      const user = vnext.users?.[0];
+      const id = user?.id;
+
+      const streamSettings = proxyOutbound.streamSettings || {};
+      const network = streamSettings.network || "tcp";
+      const security = streamSettings.security || "none";
+
+      const vmessJsonObj: Record<string, any> = {
+        v: "2",
+        ps: remark,
+        add: address,
+        port: port,
+        id: id,
+        aid: "0",
+        scy: "auto",
+        net: network,
+        type: "none",
+        host: "",
+        path: "",
+        tls: security === "tls" ? "tls" : "",
+        sni: ""
+      };
+
+      if (network === "ws") {
+        vmessJsonObj.host = streamSettings.wsSettings?.host || "";
+        vmessJsonObj.path = streamSettings.wsSettings?.path || "";
+      } else if (network === "grpc") {
+        vmessJsonObj.path = streamSettings.grpcSettings?.serviceName || "";
+      }
+
+      if (security === "tls") {
+        vmessJsonObj.sni = streamSettings.tlsSettings?.serverName || "";
+      }
+
+      const vmessB64 = Buffer.from(JSON.stringify(vmessJsonObj), "utf-8").toString("base64");
+      return `vmess://${vmessB64}`;
+    }
+
+    if (protocol === "trojan") {
+      const server = proxyOutbound.settings?.servers?.[0];
+      if (!server) return "";
+      const address = server.address;
+      const port = server.port;
+      const password = server.password;
+
+      const streamSettings = proxyOutbound.streamSettings || {};
+      const security = streamSettings.security || "none";
+      const network = streamSettings.network || "tcp";
+
+      const queryParams: string[] = [];
+      queryParams.push(`security=${security}`);
+      queryParams.push(`type=${network}`);
+
+      if (security === "tls") {
+        const tlsSettings = streamSettings.tlsSettings || {};
+        if (tlsSettings.serverName) {
+          queryParams.push(`sni=${tlsSettings.serverName}`);
+        }
+      }
+
+      const queryStr = queryParams.length > 0 ? `?${queryParams.join("&")}` : "";
+      return `trojan://${password}@${address}:${port}${queryStr}#${encodeURIComponent(remark)}`;
+    }
+
+    return "";
+  } catch (err) {
+    console.error("Failed to convert JSON config object to share link:", err);
+    return "";
+  }
 }
 
 /**
@@ -124,33 +284,86 @@ export function buildDummyConfigLink(dummy: DummyConfig): string {
 }
 
 /**
- * Processes full subscription list.
+ * Handles processing of subscriptions in both share links formats and raw updated JSON arrays.
  */
-export function generateProcessedSubscriptionText(sub: Subscription): string {
+export function generateProcessedSubscription(sub: Subscription, format: "links" | "json" = "links"): string {
   const configsList = extractConfigsList(sub.jsonConfigs);
+  const template = sub.remarksTemplate || "Server *";
+
+  // Process item remarks and formats
+  const processedConfigs = configsList.map((item, index) => {
+    const oneBasedIndex = index + 1;
+    const remarkName = template.includes("*")
+      ? template.replaceAll("*", String(oneBasedIndex))
+      : `${template} ${oneBasedIndex}`;
+
+    if (typeof item === "string") {
+      return updateConfigRemark(item, remarkName);
+    } else if (item && typeof item === "object") {
+      const clonedObj = JSON.parse(JSON.stringify(item));
+      clonedObj.remarks = remarkName;
+      return clonedObj;
+    }
+    return "";
+  }).filter(Boolean);
+
+  if (format === "json") {
+    // Return custom updated JSON structures array
+    const dummyNodes = (sub.dummyConfigs || []).map(dummy => ({
+      remarks: dummy.name,
+      outbounds: [
+        {
+          protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
+          settings: {
+            vnext: [
+              {
+                address: dummy.targetHost || "127.0.5.1",
+                port: 443,
+                users: [
+                  {
+                    id: "00000000-0000-0000-0000-000000000000",
+                    encryption: "none"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      tag: `dummy-${dummy.id}`
+    }));
+
+    return JSON.stringify([...dummyNodes, ...processedConfigs], null, 2);
+  }
+
+  // Links format (standard plain text line-by-line configuration)
   const processedLines: string[] = [];
 
-  // 1. Append dummy announcement/info configs first
+  // 1. Add dummies
   if (sub.dummyConfigs && sub.dummyConfigs.length > 0) {
     sub.dummyConfigs.forEach(dummy => {
       processedLines.push(buildDummyConfigLink(dummy));
     });
   }
 
-  // 2. Parse and append processed parsed configs
-  const template = sub.remarksTemplate || "Server *";
-  configsList.forEach((confClean, index) => {
-    const oneBasedIndex = index + 1;
-    // Replace '*' with auto-increment number, if * exists
-    const remarkName = template.includes("*")
-      ? template.replaceAll("*", String(oneBasedIndex))
-      : `${template} ${oneBasedIndex}`;
-      
-    const updated = updateConfigRemark(confClean, remarkName);
-    if (updated) {
-      processedLines.push(updated);
+  // 2. Add profiles
+  processedConfigs.forEach(item => {
+    if (typeof item === "string") {
+      processedLines.push(item);
+    } else {
+      const converted = convertJsonConfigToShareLink(item);
+      if (converted) {
+        processedLines.push(converted);
+      }
     }
   });
 
   return processedLines.join("\n");
+}
+
+/**
+ * Processes full subscription list into default text format.
+ */
+export function generateProcessedSubscriptionText(sub: Subscription): string {
+  return generateProcessedSubscription(sub, "links");
 }
