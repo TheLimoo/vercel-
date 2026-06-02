@@ -287,10 +287,107 @@ export function buildDummyConfigLink(dummy: DummyConfig): string {
  * Handles processing of subscriptions in both share links formats and raw updated JSON arrays.
  */
 export function generateProcessedSubscription(sub: Subscription, format: "links" | "json" = "links"): string {
-  if (format === "json") {
-    const trimmed = (sub.jsonConfigs || "").trim();
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-      return trimmed;
+  const trimmed = (sub.jsonConfigs || "").trim();
+  const isJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+
+  if (isJson) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      const template = sub.remarksTemplate || "Server *";
+
+      // 1. Create dummy configs in JSON format
+      const dummyNodes = (sub.dummyConfigs || []).map(dummy => ({
+        remarks: dummy.name,
+        outbounds: [
+          {
+            protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
+            settings: {
+              vnext: [
+                {
+                  address: dummy.targetHost || "127.0.5.1",
+                  port: 443,
+                  users: [
+                    {
+                      id: "00000000-0000-0000-0000-000000000000",
+                      encryption: "none"
+                    }
+                  ]
+                }
+              ]
+            },
+            streamSettings: {
+              network: "tcp",
+              security: "none"
+            }
+          }
+        ],
+        tag: `dummy-${dummy.id}`
+      }));
+
+      // 2. If it is a full v2ray/xray single client configuration scheme structure with an outbounds list
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Array.isArray(parsed.outbounds)) {
+        // Build outbounds representing the dummy config announcements
+        const dummyOutbounds = (sub.dummyConfigs || []).map(dummy => ({
+          protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
+          settings: {
+            vnext: [
+              {
+                address: dummy.targetHost || "127.0.5.1",
+                port: 443,
+                users: [
+                  {
+                    id: "00000000-0000-0000-0000-000000000000",
+                    encryption: "none"
+                  }
+                ]
+              }
+            ]
+          },
+          streamSettings: {
+            network: "tcp",
+            security: "none"
+          },
+          tag: dummy.name
+        }));
+
+        const clonedConfig = JSON.parse(JSON.stringify(parsed));
+        clonedConfig.outbounds = [...dummyOutbounds, ...(clonedConfig.outbounds || [])];
+        return JSON.stringify(clonedConfig, null, 2);
+      }
+
+      // 3. If it is a list of node configurations / array
+      let configsArray: any[] = [];
+      if (Array.isArray(parsed)) {
+        configsArray = parsed;
+      } else {
+        configsArray = [parsed];
+      }
+
+      // Apply naming template if remarks/ps exist or can be customized
+      const processedConfigs = configsArray.map((item, index) => {
+        if (item && typeof item === "object") {
+          const oneBasedIndex = index + 1;
+          const remarkName = template.includes("*")
+            ? template.replaceAll("*", String(oneBasedIndex))
+            : `${template} ${oneBasedIndex}`;
+
+          const clonedObj = JSON.parse(JSON.stringify(item));
+          if (clonedObj.remarks !== undefined) {
+            clonedObj.remarks = remarkName;
+          } else if (clonedObj.ps !== undefined) {
+            clonedObj.ps = remarkName;
+          } else {
+            clonedObj.remarks = remarkName;
+          }
+          return clonedObj;
+        }
+        return item;
+      }).filter(Boolean);
+
+      return JSON.stringify([...dummyNodes, ...processedConfigs], null, 2);
+
+    } catch (err) {
+      console.warn("Failed to parse or process subscription JSON configs, falling back to line-by-line helper:", err);
     }
   }
 
