@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getKV, logSubAccess } from "@/lib/db";
-import { Subscription, generateProcessedSubscription } from "@/lib/v2ray";
+import { Subscription, generateProcessedSubscription, extractConfigsList } from "@/lib/v2ray";
 
 const SUBS_DB_KEY = "v2ray_subscriptions_list";
 
@@ -145,6 +145,461 @@ export async function GET(
     logSubAccess(sub.path, ip, ua, hwid, deviceType).catch(ex => {
       console.error("Failed asynchronously to log subscription metrics: ", ex);
     });
+
+    const acceptHeader = req.headers.get("accept") || "";
+    const uaLower = ua.toLowerCase();
+
+    const isV2rayClient = 
+      uaLower.includes("v2ray") ||
+      uaLower.includes("clash") ||
+      uaLower.includes("sing-box") ||
+      uaLower.includes("shadowrocket") ||
+      uaLower.includes("quantumult") ||
+      uaLower.includes("v2box") ||
+      uaLower.includes("foxray") ||
+      uaLower.includes("nekobox") ||
+      uaLower.includes("streisand") ||
+      uaLower.includes("stash") ||
+      uaLower.includes("loon") ||
+      uaLower.includes("surge") ||
+      uaLower.includes("surfboard") ||
+      uaLower.includes("anxray") ||
+      uaLower.includes("fair") ||
+      uaLower.includes("kitsunebi");
+
+    const isBrowserRequest = 
+      (acceptHeader.includes("text/html") || acceptHeader.includes("application/xhtml+xml")) &&
+      !isV2rayClient;
+
+    const forceHtml = searchParams.get("view") === "true" || searchParams.get("format") === "html";
+
+    if (forceHtml || (isBrowserRequest && !searchParams.get("format") && !searchParams.get("raw"))) {
+      const host = req.headers.get("host") || req.nextUrl.host;
+      const proto = req.headers.get("x-forwarded-proto") || (req.nextUrl.protocol.replace(":", "") || "https");
+      const feedUrl = `${proto}://${host}/sub/${sub.path}`;
+
+      const totalDummies = (sub.dummyConfigs || []).length;
+      const baseConfigs = extractConfigsList(sub.jsonConfigs || "");
+      const baseConfigsCount = baseConfigs.length;
+      const totalServers = totalDummies + baseConfigsCount;
+
+      const linksOutputText = generateProcessedSubscription(sub, "links");
+      const jsonOutputText = generateProcessedSubscription(sub, "json");
+      const subBase64Value = Buffer.from(linksOutputText, "utf-8").toString("base64");
+      const plainLinksBase64 = Buffer.from(linksOutputText, "utf-8").toString("base64");
+      const jsonBase64 = Buffer.from(jsonOutputText, "utf-8").toString("base64");
+
+      const safeName = (sub.name || "Unnamed").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const safePath = (sub.path || "").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const safeIp = ip.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const safeDeviceType = deviceType.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const safeHwid = (hwid || "Not supplied (Browser Session)").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      const html = `<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Limoo &mdash; ${safeName} Subscription</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.4);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(51, 65, 85, 0.4);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(51, 65, 85, 0.7);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-start p-4 md:p-8 antialiased">
+  
+  <div class="max-w-3xl w-full space-y-8 my-auto py-10">
+    
+    <!-- Limoo elegant logo and header -->
+    <div class="text-center space-y-3 p-2">
+      <div class="inline-flex items-center justify-center p-3.5 bg-gradient-to-br from-teal-500/20 to-sky-500/20 border border-teal-500/30 rounded-3xl shadow-xl shadow-teal-500/5 select-none animate-pulse">
+        <svg class="h-10 w-10 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 5a7 7 0 100 14 7 7 0 000-14zM12 8a4 4 0 110 8 4 4 0 010-8z"></path>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-3xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2 select-none">
+          <span class="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-sky-400 font-black">Limoo</span>
+          <span class="text-slate-400 font-light">&bull; Secure Subscription</span>
+        </h1>
+        <p class="text-slate-500 text-[10px] mt-1 font-mono tracking-wider uppercase select-none">
+          Subscription Management Service
+        </p>
+      </div>
+    </div>
+
+    <!-- Main subscription details card -->
+    <div class="bg-slate-900/40 backdrop-blur-md rounded-3xl border border-slate-800/80 p-6 md:p-8 space-y-6 shadow-2xl relative overflow-hidden">
+      <!-- Glow decoration item -->
+      <div class="absolute -top-12 -right-12 w-32 h-32 bg-teal-500/10 rounded-full blur-3xl pointer-events-none select-none"></div>
+      
+      <!-- Sub info grid -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-slate-800/60 select-none">
+        <div class="space-y-4">
+          <h2 class="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">Subscription Parameters</h2>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-slate-400">Name:</span>
+              <span class="text-sm font-semibold text-white">${safeName}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-slate-400">Path Segment:</span>
+              <span class="text-xs font-mono bg-slate-950 px-2 py-1 rounded text-teal-400 border border-slate-800">${safePath}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-slate-400">Node Population:</span>
+              <span class="text-sm font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-mono text-xs">
+                ${totalServers} servers (${totalDummies} dummies)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <h2 class="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">Your Device Connection Context</h2>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-slate-400">Your IP Address:</span>
+              <span class="text-sm font-semibold text-white font-mono">${safeIp}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-slate-400">User-Agent:</span>
+              <span class="text-xs text-slate-300 max-w-[200px] truncate" title="${safeDeviceType}">${safeDeviceType}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-slate-400">Hardware ID (HWID):</span>
+              <span class="text-xs text-slate-400 font-mono italic truncate max-w-[150px]">${safeHwid}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick client integration url segment -->
+      <div class="space-y-3 bg-slate-950/40 border border-slate-800/80 p-5 rounded-2xl">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 select-none">
+          <div>
+            <h3 class="text-sm font-bold text-slate-200">Auto-Import Link</h3>
+            <p class="text-xs text-slate-500">Provide this direct link to client apps like Shadowrocket, sing-box or v2rayNG to auto-sync.</p>
+          </div>
+          <button 
+            type="button" 
+            id="sub-url-copy-btn"
+            onclick="navigator.clipboard.writeText('${feedUrl}').then(() => { showToast('toast-notify'); });"
+            class="flex items-center justify-center bg-teal-500 hover:bg-teal-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap self-start md:self-auto shadow-lg shadow-teal-500/10 cursor-pointer"
+          >
+            <svg class="h-3.5 w-3.5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+            Copy URL
+          </button>
+        </div>
+        <div class="bg-slate-950 border border-slate-900 rounded-xl p-3 select-all overflow-x-auto text-xs text-slate-300 font-mono whitespace-nowrap">
+          ${feedUrl}
+        </div>
+      </div>
+
+      <!-- Tabs and Code viewers section -->
+      <div class="space-y-4 pt-2">
+        <div class="flex flex-wrap border-b border-slate-800/80 gap-1 overflow-x-auto select-none">
+          <button 
+            type="button" 
+            id="tab-btn-b64"
+            onclick="switchTab('tab-btn-b64', 'tab-content-b64')"
+            class="tab-btn px-4 py-2.5 text-xs font-bold text-teal-400 border-b-2 border-teal-400 bg-slate-900/50 rounded-t-xl transition whitespace-nowrap cursor-pointer"
+          >
+            Base64 Feed (Standard)
+          </button>
+          <button 
+            type="button" 
+            id="tab-btn-plain"
+            onclick="switchTab('tab-btn-plain', 'tab-content-plain')"
+            class="tab-btn px-4 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition whitespace-nowrap cursor-pointer"
+          >
+            Plain Share URLs
+          </button>
+          <button 
+            type="button" 
+            id="tab-btn-json"
+            onclick="switchTab('tab-btn-json', 'tab-content-json')"
+            class="tab-btn px-4 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition whitespace-nowrap cursor-pointer"
+          >
+            Nodes JSON Array
+          </button>
+        </div>
+
+        <!-- Tab contents wrapper -->
+        <div class="relative bg-slate-950 rounded-2xl border border-slate-850 overflow-hidden">
+          
+          <!-- TAB 1: BASE64 FEED CONTENT -->
+          <div id="tab-content-b64" class="tab-content block">
+            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-400 font-mono font-medium">B64 Output Payload (${subBase64Value.length} chars)</span>
+              <button 
+                type="button" 
+                id="copy-btn-b64"
+                onclick="copyToClipboard('b64-body', 'copy-btn-b64', 'toast-notify')"
+                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+              >
+                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Config
+              </button>
+            </div>
+            <div id="b64-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
+              <pre id="b64-body" data-full-text="${subBase64Value}" data-is-b64-encoded="false" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed"></pre>
+              <!-- Faded overlay and reveal button -->
+              <div id="b64-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+                <button 
+                  type="button" 
+                  id="b64-body-expand-btn"
+                  onclick="toggleTruncation('b64-body-expand-btn', 'b64-body', 'b64-wrapper', 'b64-body-overlay')"
+                  class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center transition cursor-pointer shadow-lg hidden"
+                >
+                  <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>
+                  Show Full Config
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: PLAIN CONFIGS CONTENT -->
+          <div id="tab-content-plain" class="tab-content hidden">
+            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-400 font-mono font-medium">Plain Links Payload (${linksOutputText.length} chars)</span>
+              <button 
+                type="button" 
+                id="copy-btn-plain"
+                onclick="copyToClipboard('plain-body', 'copy-btn-plain', 'toast-notify')"
+                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+              >
+                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Config
+              </button>
+            </div>
+            <div id="plain-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
+              <pre id="plain-body" data-full-text="${plainLinksBase64}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed"></pre>
+              <!-- Faded overlay and reveal button -->
+              <div id="plain-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+                <button 
+                  type="button" 
+                  id="plain-body-expand-btn"
+                  onclick="toggleTruncation('plain-body-expand-btn', 'plain-body', 'plain-wrapper', 'plain-body-overlay')"
+                  class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center transition cursor-pointer shadow-lg hidden"
+                >
+                  <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>
+                  Show Full Config
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 3: JSON NODES CONTENT -->
+          <div id="tab-content-json" class="tab-content hidden">
+            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-400 font-mono font-medium">Nodes JSON Array Payload (${jsonOutputText.length} chars)</span>
+              <button 
+                type="button" 
+                id="copy-btn-json"
+                onclick="copyToClipboard('json-body', 'copy-btn-json', 'toast-notify')"
+                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+              >
+                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Config
+              </button>
+            </div>
+            <div id="json-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
+              <pre id="json-body" data-full-text="${jsonBase64}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed"></pre>
+              <!-- Faded overlay and reveal button -->
+              <div id="json-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+                <button 
+                  type="button" 
+                  id="json-body-expand-btn"
+                  onclick="toggleTruncation('json-body-expand-btn', 'json-body', 'json-wrapper', 'json-body-overlay')"
+                  class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center transition cursor-pointer shadow-lg hidden"
+                >
+                  <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>
+                  Show Full Config
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+    
+    <!-- Footer Section with Limoo attribution -->
+    <div class="text-center text-xs text-slate-600 font-mono py-4 select-none">
+      Powered by <span class="text-teal-400/80 font-semibold font-sans">Limoo Gateway Service</span> &bull; Security Verified &bull; 2026
+    </div>
+
+  </div>
+
+  <!-- Toast alert template notification container -->
+  <div id="toast-notify" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-800 text-teal-400 px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-2.5 transition-all duration-300 opacity-0 translate-y-2 pointer-events-none z-50 select-none">
+    <svg class="h-4.5 w-4.5 text-teal-400" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+    <span class="text-xs font-semibold">Config payload copied to your clipboard!</span>
+  </div>
+
+  <script>
+    function decodeUtf8B64(str) {
+      try {
+        return decodeURIComponent(escape(atob(str)));
+      } catch (err) {
+        return atob(str);
+      }
+    }
+
+    function copyToClipboard(bodyId, buttonId, toastId) {
+      const el = document.getElementById(bodyId);
+      if (!el) return;
+      
+      const raw = el.getAttribute("data-full-text") || "";
+      const isEncoded = el.getAttribute("data-is-b64-encoded") === "true";
+      const fullText = isEncoded ? decodeUtf8B64(raw) : raw;
+
+      navigator.clipboard.writeText(fullText).then(() => {
+        // Show Toast Notify
+        showToast(toastId);
+        
+        // Update Button temporarily
+        const btn = document.getElementById(buttonId);
+        if (btn) {
+          const origHtml = btn.innerHTML;
+          btn.innerHTML = \`<svg class="h-4 w-4 mr-1 text-emerald-400 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"></path></svg><span>Copied!</span>\`;
+          setTimeout(() => { btn.innerHTML = origHtml; }, 2000);
+        }
+      }).catch(err => {
+        console.error("Copy operation failed: ", err);
+      });
+    }
+
+    function showToast(toastId) {
+      const toast = document.getElementById(toastId);
+      if (toast) {
+        toast.classList.remove("opacity-0", "translate-y-2", "pointer-events-none");
+        toast.classList.add("opacity-100", "translate-y-0");
+        setTimeout(() => {
+          toast.classList.remove("opacity-100", "translate-y-0");
+          toast.classList.add("opacity-0", "translate-y-2", "pointer-events-none");
+        }, 2200);
+      }
+    }
+
+    function switchTab(btnId, targetContentId) {
+      const tabs = document.querySelectorAll(".tab-content");
+      tabs.forEach(tab => { tab.classList.add("hidden"); tab.classList.remove("block"); });
+      
+      const tabBtns = document.querySelectorAll(".tab-btn");
+      tabBtns.forEach(btn => {
+        btn.classList.remove("text-teal-400", "border-teal-400", "bg-slate-900/50");
+        btn.classList.add("text-slate-400", "border-transparent", "hover:text-slate-200");
+      });
+      
+      const target = document.getElementById(targetContentId);
+      if (target) {
+        target.classList.remove("hidden");
+        target.classList.add("block");
+      }
+      
+      const clickedBtn = document.getElementById(btnId);
+      if (clickedBtn) {
+        clickedBtn.classList.remove("text-slate-400", "border-transparent", "hover:text-slate-200");
+        clickedBtn.classList.add("text-teal-400", "border-teal-400", "bg-slate-900/50");
+      }
+    }
+
+    function toggleTruncation(btnId, bodyId, wrapperId, overlayId) {
+      const body = document.getElementById(bodyId);
+      const wrapper = document.getElementById(wrapperId);
+      const overlay = document.getElementById(overlayId);
+      const btn = document.getElementById(btnId);
+      if (!body || !wrapper || !overlay || !btn) return;
+      
+      const raw = body.getAttribute("data-full-text") || "";
+      const isEncoded = body.getAttribute("data-is-b64-encoded") === "true";
+      const fullText = isEncoded ? decodeUtf8B64(raw) : raw;
+      
+      const isTruncated = body.getAttribute("data-truncated") === "true";
+      
+      if (isTruncated) {
+        body.innerText = fullText;
+        body.setAttribute("data-truncated", "false");
+        overlay.classList.add("hidden");
+        wrapper.classList.remove("max-h-72");
+        wrapper.classList.add("max-h-[500px]");
+        btn.innerHTML = \`<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5"></path></svg>Collapse Preview\`;
+      } else {
+        const limit = 500;
+        body.innerText = fullText.substring(0, limit) + "\\n\\n... [TRUNCATED - PLEASE CLICK SHOW FULL OR USE COPY BUTTON]";
+        body.setAttribute("data-truncated", "true");
+        overlay.classList.remove("hidden");
+        wrapper.classList.remove("max-h-[500px]");
+        wrapper.classList.add("max-h-72");
+        btn.innerHTML = \`<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>Show Full Config\`;
+      }
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const elementIds = ["b64-body", "plain-body", "json-body"];
+      elementIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        
+        const raw = el.getAttribute("data-full-text") || "";
+        const isEncoded = el.getAttribute("data-is-b64-encoded") === "true";
+        const full = isEncoded ? decodeUtf8B64(raw) : raw;
+        
+        const limitCh = 650;
+        
+        if (full.length > limitCh) {
+          el.innerText = full.substring(0, 500) + "\\n\\n... [TRUNCATED - PLEASE CLICK SHOW FULL OR USE COPY BUTTON]";
+          el.setAttribute("data-truncated", "true");
+          
+          const btnId = id + "-expand-btn";
+          const overlayId = id + "-overlay";
+          const btn = document.getElementById(btnId);
+          const overlay = document.getElementById(overlayId);
+          if (btn) btn.classList.remove("hidden");
+          if (overlay) overlay.classList.remove("hidden");
+        } else {
+          el.innerText = full;
+          el.setAttribute("data-truncated", "false");
+        }
+      });
+    });
+  </script>
+</body>
+</html>`;
+
+      return new NextResponse(html, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      });
+    }
 
     const resultText = generateProcessedSubscription(sub, format);
 
