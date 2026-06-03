@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkAuth } from "@/lib/auth";
+import { checkAuth, checkAuthWithLevel } from "@/lib/auth";
 import { getSubAccessMetrics, deleteSubAccessMetrics, deleteSingleAccessMetric } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
@@ -19,9 +19,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const isAuthorized = await checkAuth(req);
+  const isAuthorized = await checkAuthWithLevel(req, 2);
   if (!isAuthorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized. Editor (Level 2) access is required to clear metrics." }, { status: 403 });
   }
 
   try {

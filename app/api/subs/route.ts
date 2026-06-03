@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkAuth } from "@/lib/auth";
+import { checkAuth, checkAuthWithLevel } from "@/lib/auth";
 import { getKV, setKV } from "@/lib/db";
 import { Subscription } from "@/lib/v2ray";
 
@@ -20,9 +20,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const isAuthorized = await checkAuth(req);
+  const isAuthorized = await checkAuthWithLevel(req, 2);
   if (!isAuthorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized. Editor (Level 2) access is required." }, { status: 403 });
   }
 
   try {
@@ -88,9 +88,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const isAuthorized = await checkAuth(req);
+  const isAuthorized = await checkAuthWithLevel(req, 2);
   if (!isAuthorized) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized. Editor (Level 2) access is required." }, { status: 403 });
   }
 
   try {

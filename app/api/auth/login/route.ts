@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSession } from "@/lib/auth";
+import { createAdminSession } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const { password } = await req.json();
+    const body = await req.json();
+    const username = body.username ? String(body.username).trim() : "";
+    const password = body.password ? String(body.password) : "";
+
     if (!password) {
       return NextResponse.json({ error: "Password is required" }, { status: 400 });
     }
 
-    const token = await createSession(password);
-    if (!token) {
-      return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+    // Attempt to log in with username (defaults to 'admin' inside createAdminSession if empty)
+    const loginResult = await createAdminSession(username || "admin", password);
+    if (!loginResult) {
+      return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
     // Set HTTP-Only Cookie
-    const response = NextResponse.json({ success: true, message: "Logged in successfully" });
-    response.cookies.set("admin_session", token, {
+    const response = NextResponse.json({ 
+      success: true, 
+      message: "Logged in successfully",
+      user: {
+        username: loginResult.user.username,
+        name: loginResult.user.name,
+        level: loginResult.user.level,
+      }
+    });
+
+    response.cookies.set("admin_session", loginResult.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",

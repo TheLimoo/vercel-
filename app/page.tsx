@@ -20,7 +20,11 @@ import {
   Link,
   Save,
   Clock,
-  ExternalLink
+  ExternalLink,
+  User,
+  Users,
+  Lock,
+  Shield
 } from "lucide-react";
 
 import { Subscription, DummyConfig, extractConfigsList, updateConfigRemark } from "@/lib/v2ray";
@@ -100,9 +104,13 @@ function getOriginalConfigRemark(item: any, idx: number): string {
 export default function Dashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isUsingDefaultPassword, setIsUsingDefaultPassword] = useState(false);
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
+  // Logged-in admin user information
+  const [currentUser, setCurrentUser] = useState<{ username: string; name: string; level: number; description?: string } | null>(null);
 
   // DB Subscriptions List
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -128,9 +136,22 @@ export default function Dashboard() {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   // Tab State & Users connection tracking metrics
-  const [activeTab, setActiveTab] = useState<"config" | "metrics">("config");
+  const [activeTab, setActiveTab] = useState<"config" | "metrics" | "admins">("config");
   const [metricsList, setMetricsList] = useState<any[]>([]);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+
+  // States for Admin accounts management (Level 3 exclusive)
+  const [adminsList, setAdminsList] = useState<any[]>([]);
+  const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [adminUsername, setAdminUsername] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminLevel, setAdminLevel] = useState<number>(2); // 1: Viewer, 2: Editor, 3: Super Admin
+  const [adminDescription, setAdminDescription] = useState("");
+  const [selectedAdminUsername, setSelectedAdminUsername] = useState<string | null>(null);
+  const [adminError, setAdminError] = useState("");
+  const [isAdminSaving, setIsAdminSaving] = useState(false);
 
   // Root Host URL calculations computed cleanly during rendering
   const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
@@ -181,6 +202,10 @@ export default function Dashboard() {
 
   const handlePurgeAccessMetrics = async () => {
     if (!editPath) return;
+    if (currentUser?.level === 1) {
+      showToast("Access Denied: Read-only Viewer permissions cannot clear metrics logs.", "error");
+      return;
+    }
     if (!confirm(`Are you sure you want to clear all recorded user and device metrics for /sub/${editPath}?`)) {
       return;
     }
@@ -202,6 +227,10 @@ export default function Dashboard() {
 
   const handleDeleteSingleMetric = async (item: any) => {
     if (!editPath) return;
+    if (currentUser?.level === 1) {
+      showToast("Access Denied: Read-only Viewer permissions cannot delete metric records.", "error");
+      return;
+    }
     if (!confirm(`Are you sure you want to delete the metrics for user IP ${item.ip}?`)) {
       return;
     }
@@ -262,6 +291,7 @@ export default function Dashboard() {
       setIsAuthenticated(data.authenticated);
       setIsUsingDefaultPassword(data.isUsingDefaultPassword);
       if (data.authenticated) {
+        setCurrentUser(data.user || null);
         setIsRefreshing(true);
         const subRes = await fetch("/api/subs");
         if (subRes.ok) {
@@ -306,12 +336,14 @@ export default function Dashboard() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         setIsAuthenticated(true);
+        setCurrentUser(data.user || null);
         setPassword("");
+        setUsername("");
         fetchSubscriptions();
         showToast("Welcome to the Admin workspace!");
         // Refresh check to check password flags
@@ -332,15 +364,138 @@ export default function Dashboard() {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       setIsAuthenticated(false);
+      setCurrentUser(null);
       setSubscriptions([]);
       setSelectedSubId(null);
+      setAdminsList([]);
       showToast("Session closed successfully", "info");
     } catch (err) {
       showToast("Failed to terminate session", "error");
     }
   };
 
+  // Admin list loaders and controllers
+  const fetchAdmins = async () => {
+    setIsLoadingAdmins(true);
+    try {
+      const res = await fetch("/api/admins");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setAdminsList(data.admins || []);
+        } else {
+          showToast(data.error || "Failed to load admin accounts", "error");
+        }
+      } else {
+        showToast("Error status returned fetching administrative roles", "error");
+      }
+    } catch (err) {
+      showToast("Network failure retrieving administrators", "error");
+    } finally {
+      setIsLoadingAdmins(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "admins" && currentUser?.level === 3) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchAdmins();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, currentUser]);
+
+  const handleDeleteAdmin = async (targetUser: string) => {
+    if (!window.confirm(`Are you absolutely sure you want to completely delete administrator account '${targetUser}'?\n\nThis cannot be undone.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admins?username=${encodeURIComponent(targetUser)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAdminsList(data.admins || []);
+        showToast(`Administrator account '${targetUser}' deleted.`, "success");
+      } else {
+        showToast(data.error || "Failed to delete account.", "error");
+      }
+    } catch (err) {
+      showToast("Network error trying to purge administrator.", "error");
+    }
+  };
+
+  const handleOpenCreateAdminModal = () => {
+    setSelectedAdminUsername(null);
+    setAdminUsername("");
+    setAdminName("");
+    setAdminPassword("");
+    setAdminLevel(2);
+    setAdminDescription("");
+    setAdminError("");
+    setShowAdminModal(true);
+  };
+
+  const handleOpenEditAdminModal = (adm: any) => {
+    setSelectedAdminUsername(adm.username);
+    setAdminUsername(adm.username);
+    setAdminName(adm.name);
+    setAdminPassword("");
+    setAdminLevel(adm.level);
+    setAdminDescription(adm.description || "");
+    setAdminError("");
+    setShowAdminModal(true);
+  };
+
+  const handleSaveAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminUsername.trim() || !adminName.trim()) {
+      setAdminError("Username and Display Name are mandatory fields.");
+      return;
+    }
+    if (!selectedAdminUsername && !adminPassword) {
+      setAdminError("Password is required for newly created administrator accounts.");
+      return;
+    }
+
+    setIsAdminSaving(true);
+    setAdminError("");
+
+    try {
+      const payload = {
+        username: adminUsername,
+        name: adminName,
+        password: adminPassword || undefined,
+        level: adminLevel,
+        description: adminDescription,
+      };
+
+      const method = selectedAdminUsername ? "PUT" : "POST";
+      const res = await fetch("/api/admins", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAdminsList(data.admins || []);
+        setShowAdminModal(false);
+        showToast(selectedAdminUsername ? `Admin '${adminUsername}' updated.` : `Admin '${adminUsername}' created successfully.`, "success");
+      } else {
+        setAdminError(data.error || "Failed to save administrator.");
+      }
+    } catch (err) {
+      setAdminError("Network failure working on administrator records.");
+    } finally {
+      setIsAdminSaving(false);
+    }
+  };
+
   const handleCreateNewSubscription = async () => {
+    if (currentUser?.level === 1) {
+      showToast("Access Denied: Read-only Viewer permissions cannot create subscriptions.", "error");
+      return;
+    }
     const { payload, path: defaultPath } = buildInitialSubscriptionPayload(subscriptions.length);
 
     try {
@@ -369,6 +524,10 @@ export default function Dashboard() {
 
   const handleSaveSubscription = async () => {
     if (!selectedSubId) return;
+    if (currentUser?.level === 1) {
+      showToast("Access Denied: Read-only Viewer permissions cannot modify subscriptions.", "error");
+      return;
+    }
     if (!editName.trim()) {
       showToast("Subscription configuration name required", "error");
       return;
@@ -415,6 +574,10 @@ export default function Dashboard() {
   };
 
   const handleDeleteSubscription = async (id: string, name: string) => {
+    if (currentUser?.level === 1) {
+      showToast("Access Denied: Read-only Viewer permissions cannot delete subscriptions.", "error");
+      return;
+    }
     if (!confirm(`Are you sure you want to delete "${name}"? This action is irreversible.`)) {
       return;
     }
@@ -543,14 +706,36 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 font-mono">
-                Secret Access Password
+                Administrator Username
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3">
-                  <Key className="h-5 w-5 text-slate-500" />
+                  <User className="h-5 w-5 text-slate-500" />
+                </span>
+                <input
+                  id="admin_username_input"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="admin (or leave empty)"
+                  className="w-full block pl-10 pr-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 text-sm font-sans"
+                />
+              </div>
+              <span className="text-[10px] text-slate-500 block mt-1">
+                Optional: Omitting defaults access attempt to the master &quot;admin&quot; account.
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 font-mono">
+                Access Password
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3">
+                  <Lock className="h-5 w-5 text-slate-500" />
                 </span>
                 <input
                   id="admin_password_input"
@@ -648,11 +833,19 @@ export default function Dashboard() {
             <Layers className="h-6 w-6 text-sky-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-sky-400">Limoo</span>
-              <span className="text-[10px] font-mono leading-none bg-sky-500/10 text-sky-400 py-1 px-2.5 rounded-full border border-sky-400/20 font-bold">
-                Active Admin Panel
-              </span>
+            <h1 className="text-xl font-bold tracking-tight text-white flex flex-wrap items-center gap-2">
+              <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-sky-400 select-none">Limoo</span>
+              {currentUser && (
+                <span className={`text-[10px] font-semibold leading-none py-1 px-2.5 rounded-full border font-mono flex items-center gap-1 ${
+                  currentUser.level === 3
+                    ? "bg-teal-500/10 text-teal-400 border-teal-400/20"
+                    : currentUser.level === 2
+                    ? "bg-sky-500/10 text-sky-400 border-sky-400/20"
+                    : "bg-slate-500/10 text-slate-400 border-slate-500/20"
+                }`}>
+                  👤 {currentUser.name || currentUser.username} ({currentUser.level === 3 ? "Super Admin" : currentUser.level === 2 ? "Editor" : "Viewer"})
+                </span>
+              )}
             </h1>
             <p className="text-[11px] text-slate-400 font-mono">
               Turso Database (libsql) or Local SQLite Fallback Mode
@@ -692,14 +885,16 @@ export default function Dashboard() {
             <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
               Subscription Feeds
             </h2>
-            <button
-              id="add_new_sub_sidebar_btn"
-              onClick={handleCreateNewSubscription}
-              className="p-1.5 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 rounded-lg text-white transition shadow"
-              title="Add a custom subscription page"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
+            {currentUser?.level !== 1 && (
+              <button
+                id="add_new_sub_sidebar_btn"
+                onClick={handleCreateNewSubscription}
+                className="p-1.5 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 rounded-lg text-white transition shadow"
+                title="Add a custom subscription page"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
           </div>
 
           <p className="text-xs text-slate-500">
@@ -748,16 +943,18 @@ export default function Dashboard() {
                         {totalActiveCount}
                       </span>
                       
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteSubscription(sub.id, sub.name);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-1 rounded hover:bg-slate-800 text-slate-500 transition-all duration-150"
-                        title="Delete Subscription list"
-                      >
-                        <Trash className="h-3.5 w-3.5" />
-                      </button>
+                      {currentUser?.level !== 1 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteSubscription(sub.id, sub.name);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-1 rounded hover:bg-slate-800 text-slate-500 transition-all duration-150"
+                          title="Delete Subscription list"
+                        >
+                          <Trash className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -855,6 +1052,29 @@ export default function Dashboard() {
                     </span>
                   )}
                 </button>
+
+                {currentUser?.level === 3 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("admins");
+                      fetchAdmins();
+                    }}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all relative ${
+                      activeTab === "admins"
+                        ? "border-amber-500 text-amber-400 bg-amber-500/5 font-bold"
+                        : "border-transparent text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <Users className="h-4 w-4" />
+                    <span>Admins & Permissions</span>
+                    {adminsList.length > 0 && (
+                      <span className="bg-amber-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                        {adminsList.length}
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
 
               {activeTab === "config" ? (
@@ -1371,7 +1591,7 @@ export default function Dashboard() {
               </div>
 
             </>
-          ) : (
+          ) : activeTab === "metrics" ? (
             <div className="space-y-6 pb-12 animate-fade-in duration-300">
               {/* Header row inside tab */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950 p-5 rounded-2xl border border-slate-800">
@@ -1508,6 +1728,138 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
+          ) : (
+            <div className="space-y-6 pb-12 animate-fade-in duration-300 text-left">
+              {/* ADMIN ACCOUNT MANAGEMENT SECTION */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950 p-5 rounded-2xl border border-slate-800">
+                <div>
+                  <h3 className="text-base font-semibold text-white tracking-tight flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-amber-400" />
+                    <span>👥 Admin Accounts &amp; Privileges</span>
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-1">
+                    Manage operator profiles, access credentials, and visual/operational clearance levels.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenCreateAdminModal}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition"
+                >
+                  <Plus className="h-4 w-4 text-slate-950" />
+                  <span>Create Operator</span>
+                </button>
+              </div>
+
+              {/* Roles reference card */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80">
+                  <span className="text-[10px] uppercase font-mono font-bold text-teal-400 bg-teal-500/10 border border-teal-500/25 px-2 py-0.5 rounded-full inline-block mb-2">Level 3 — Super Admin</span>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Full master capabilities. Manage dynamic subscription feeds, clear raw metrics tables, and perform CRUD transactions on administrator logs.
+                  </p>
+                </div>
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80">
+                  <span className="text-[10px] uppercase font-mono font-bold text-sky-400 bg-sky-500/10 border border-sky-400/25 px-2 py-0.5 rounded-full inline-block mb-2">Level 2 — Editor</span>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Write/edit capabilities over proxies and subscribers, dummy announcements, renamer profiles, and can delete metric logs, but holds no admin manager permissions.
+                  </p>
+                </div>
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/80">
+                  <span className="text-[10px] uppercase font-mono font-bold text-slate-400 bg-slate-500/10 border border-slate-500/25 px-2 py-0.5 rounded-full inline-block mb-2">Level 1 — Viewer</span>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Strictly read-only access. Can view lists of subscription paths, read metrics, but operations like saving config, deleting profiles, or updating databases are disabled.
+                  </p>
+                </div>
+              </div>
+
+              {/* Operator table/list */}
+              <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-950 border-b border-slate-850 text-[10px] font-mono text-slate-400 uppercase tracking-wider">
+                        <th className="py-3 px-4">Operator Username</th>
+                        <th className="py-3 px-4">Display Name</th>
+                        <th className="py-3 px-4">Authorization Role</th>
+                        <th className="py-3 px-4">Description Duty</th>
+                        <th className="py-3 px-4">Created Date</th>
+                        <th className="py-3 px-4 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-900">
+                      {isLoadingAdmins ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-xs text-slate-500 italic">
+                            <span className="inline-block animate-spin mr-2">⚙️</span> Syncing administrator database records...
+                          </td>
+                        </tr>
+                      ) : adminsList.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-xs text-slate-500 italic">
+                            No operator accounts matched.
+                          </td>
+                        </tr>
+                      ) : (
+                        adminsList.map((adm) => {
+                          const isSelf = currentUser && adm.username.toLowerCase() === currentUser.username.toLowerCase();
+                          const isMaster = adm.username.toLowerCase() === "admin";
+                          return (
+                            <tr key={adm.username} className="hover:bg-slate-900/40 transition">
+                              <td className="py-3.5 px-4 font-mono text-xs font-semibold text-white">
+                                @{adm.username} {isSelf && <span className="text-[9px] bg-sky-500/10 text-sky-400 border border-sky-500/20 px-1.5 py-0.5 rounded font-sans ml-1">You</span>}
+                              </td>
+                              <td className="py-3.5 px-4 text-xs font-medium text-slate-200">
+                                {adm.name}
+                              </td>
+                              <td className="py-3.5 px-4 text-xs">
+                                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                                  adm.level === 3
+                                    ? "bg-teal-500/10 text-teal-400 border border-teal-500/20"
+                                    : adm.level === 2
+                                    ? "bg-sky-500/10 text-sky-400 border-sky-400/20"
+                                    : "bg-slate-550/10 text-slate-400 border-slate-500/20"
+                                }`}>
+                                  Level {adm.level} — {adm.level === 3 ? "Super Admin" : adm.level === 2 ? "Editor" : "Viewer"}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-xs text-slate-400 truncate max-w-[180px]" title={adm.description}>
+                                {adm.description || <span className="text-slate-600 italic">No notes</span>}
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-[10px] text-slate-500">
+                                {adm.createdAt ? new Date(adm.createdAt).toLocaleDateString() : "N/A"}
+                              </td>
+                              <td className="py-3.5 px-4 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditAdminModal(adm)}
+                                    className="p-1 hover:bg-slate-850 hover:text-white border border-transparent rounded transition text-slate-400"
+                                    title="Edit settings"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={isSelf || isMaster}
+                                    onClick={() => handleDeleteAdmin(adm.username)}
+                                    className="p-1 hover:bg-red-950 hover:text-red-400 border border-transparent rounded disabled:opacity-30 disabled:cursor-not-allowed transition text-slate-450"
+                                    title={isSelf ? "Cannot delete yourself" : isMaster ? "Cannot delete master seed admin" : "Delete user"}
+                                  >
+                                    <Trash className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           )}
 
         </div>
@@ -1515,6 +1867,128 @@ export default function Dashboard() {
         </main>
 
       </div>
+
+      {/* OVERLAY MODAL: CREATE / EDIT ADMINISTRATOR */}
+      {showAdminModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in animate-duration-200 text-left">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-850 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Shield className="h-5 w-5 text-amber-400 animate-pulse" />
+                <span>{selectedAdminUsername ? `Modify Administrator: @${adminUsername}` : "Create New System Administrator"}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAdminModal(false)}
+                className="text-slate-400 hover:text-white font-mono text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdmin} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
+                  Login Username (Immutable once created)
+                </label>
+                <input
+                  type="text"
+                  disabled={!!selectedAdminUsername}
+                  value={adminUsername}
+                  onChange={(e) => setAdminUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
+                  placeholder="e.g. support_iran"
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-sans focus:outline-none focus:border-amber-500 disabled:opacity-55 disabled:cursor-not-allowed transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  value={adminName}
+                  onChange={(e) => setAdminName(e.target.value)}
+                  placeholder="e.g. Support Iran Team"
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-sans focus:outline-none focus:border-amber-500 transition-all font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
+                  Access Password {selectedAdminUsername && "(Leave blank to keep unchanged)"}
+                </label>
+                <input
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder={selectedAdminUsername ? "••••••••••••" : "At least 6 characters..."}
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-mono tracking-widest focus:outline-none focus:border-amber-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
+                  Role Permission Level
+                </label>
+                <select
+                  value={adminLevel}
+                  onChange={(e) => setAdminLevel(Number(e.target.value))}
+                  disabled={adminUsername === "admin"}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-medium"
+                >
+                  <option value={3}>Level 3 — Super Admin (Full Read-Write &amp; User CRUD)</option>
+                  <option value={2}>Level 2 — Editor (Read-Write of Subscriptions &amp; Metrics Purge)</option>
+                  <option value={1}>Level 1 — Viewer (Read-only Feeds &amp; Metrics Diagnostics)</option>
+                </select>
+                {adminUsername === "admin" && (
+                  <span className="text-[10px] text-slate-500 block mt-1">
+                    Note: The default master administrator &apos;admin&apos; must remain Level 3.
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 font-mono">
+                  Role Description / Duty Notes
+                </label>
+                <input
+                  type="text"
+                  value={adminDescription}
+                  onChange={(e) => setAdminDescription(e.target.value)}
+                  placeholder="e.g. Head of Support Group"
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-sans focus:outline-none focus:border-amber-500 transition-all text-slate-300"
+                />
+              </div>
+
+              {adminError && (
+                <div className="p-3 bg-red-950 border border-red-900 rounded-xl text-red-300 text-xs flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-400" />
+                  <span>{adminError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowAdminModal(false)}
+                  className="px-4 py-2 bg-slate-850 hover:bg-slate-800 text-slate-300 text-xs font-semibold rounded-lg transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAdminSaving}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 font-bold text-slate-950 text-xs rounded-lg transition"
+                >
+                  {isAdminSaving ? "Saving..." : "Save Operator Account"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

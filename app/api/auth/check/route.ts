@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkAuth } from "@/lib/auth";
+import { getLoggedInUser } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const isAuthorized = await checkAuth(req);
+    const user = await getLoggedInUser(req);
     const isUsingDefaultPassword = !process.env.ADMIN_PASSWORD;
 
+    if (user) {
+      return NextResponse.json({
+        authenticated: true,
+        user: {
+          username: user.username,
+          name: user.name,
+          level: user.level,
+          description: user.description,
+        },
+        isUsingDefaultPassword,
+      });
+    }
+
     return NextResponse.json({
-      authenticated: isAuthorized,
+      authenticated: false,
       isUsingDefaultPassword,
     });
   } catch (err: any) {
