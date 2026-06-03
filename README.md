@@ -1,59 +1,73 @@
-# 🚀 V2Ray Subscription Manager (Custom Remarks & Dummies)
+# 🍋 Limoo — V2Ray Subscription & Customization Hub
 
-A powerful, secure Next.js full-stack utility designed for creating custom V2Ray subscription lists. Easily manage multiple subscription configs with real-time JSON upload parsing, auto-incrementing remark custom tags, and custom dummy/announcement nodes. Optimized for deployment with Turso (libsql over HTTP) database persistence.
+**Limoo** is a sleek, secure, full-stack Next.js web application designed to normalize, sort, and organize V2Ray client subscriptions. It parses uploaded configurations (Base64 subscription feeds or JSON blocks), simplifies and re-orders client node names (remarks) with serialized patterns, handles custom system announcement mock-nodes, and exposes highly optimized subscription endpoints.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyour-username%2Fyour-repo-name&env=ADMIN_PASSWORD,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN&project-name=v2ray-custom-sub&repository-name=v2ray-custom-sub&demo-title=V2Ray%20Subscription%20Manager&demo-description=Organize%20and%20customize%20V2Ray%20remarks%20with%20auto%20numbering%20and%20dummy%20announcement%20configurations.&demo-url=https%3A%2F%2Fv2ray-custom-sub.vercel.app)
-
----
-
-## ✨ Features
-
-- **🔒 Restricted Access**: Full authentication system with secure HTTP-only cookie validation safeguarding the admin workspace.
-- **🛠️ Automated Remark Redefinitions**: Upload raw config files (base64 links or JSON array formats) and rewrite remarks (display names) automatically using a flexible template. A `*` inside the template will automatically serialize as consecutive index numbers (such as `Server #1`, `Server #2`).
-- **📢 Custom Announcer & Stats nodes**: Generate custom informational dummy nodes (VLESS format) directly within subscriptions to publish news, remaining server time, or system announcements.
-- **🔗 Multiple Distinct Custom Subscriptions**: Configure any number of independent subscriptions, each linked to their own designated endpoint routing (e.g. `/sub/vip-configs` or `/sub/backup-configs`).
-- **⚡ Dual Storage Stack**: Turso DB integration when deployed dynamically on cloud infrastructure, with absolute zero-configuration SQLite (`v2ray_local.db` via libsql) local fallback for development testing inside local directories.
+Built with a clean UI and robust backend using **Turso DB / local SQLite (libsql)**.
 
 ---
 
-## ⚡ Quick Start: One-Click Automatic Vercel Deploy
+## 🎨 Visual Identity & Key Features
 
-1. Click the Vercel Deploy Button above.
-2. Log in with your GitHub/Vercel account.
-3. Vercel will prompt you to provide your admin password and Turso DB credentials:
-   - `ADMIN_PASSWORD`: Enter your private administration credentials (e.g. `MySecurePassword123`).
-   - `TURSO_DATABASE_URL`: Your Turso connection URL (e.g., `libsql://your-db-name.turso.io`).
-   - `TURSO_AUTH_TOKEN`: Your Turso Database secret authorization token.
-4. Your customized manager is ready immediately!
+- **🔒 Strong Administration Gateway**: High-security session validation protecting your subscription management platform.
+- **🛠️ Smart Remark Normalization**: Easily specify custom rules to rename client profiles on the fly. Pattern matching serialization (such as using `*` for sequential indexes like `Limoo-DE-01`, `Limoo-DE-02`) provides a highly professional, organized feed experience.
+- **📢 Dummy & Announcement Nodes**: Expose mock/informational servers (VLESS or other custom formats) to seamlessly announce instructions, expiration dates, or real-time system alerts directly inside subscription feed outputs.
+- **🔗 Flexible Sub Route Scopes**: Create custom aliases and target endpoint slugs (e.g. `/sub/premium-line`).
+- **⚡ Fast, Hybrid DB Access**: Seamless cloud scaling with Turso (libsql) over HTTP or absolute zero-configuration local SQLite (`v2ray_local.db`) for lightweight development.
+- **📊 Interactive Metrics Hub**: Track subscriber connections with details on **IP address**, **devices**, and **Fetch Hit counters**, with the power to selectively purge individual metric entries.
 
 ---
 
 ## 🏗️ Manual Deployment Guide
 
-Follow these simple stages to set up your subscription pipeline:
+Since automated deployments can occasionally misconfigure environments or result in repository synchronization problems, **Limoo** is designed to be set up manually to guarantee full security and path-level isolation.
 
-### 1. Prerequisites
-- A **GitHub** account
-- A **Vercel** account
-- A **Turso** account (Free tier SQLite over HTTP/REST)
-- Node.js (v18+) installed on your workstation
+### Part 1: Build & Environment Variables
 
-### 2. Configure Turso Database
-1. Go to your **Turso Dashboard** or use the Turso CLI tools.
-2. Click **Create Database** and choose a location near your target customers.
-3. Obtain your **Database URL** and generate an **Auth Token** from your Turso project settings page.
+Make sure the following variables are configured in your development environment or host container (e.g., Vercel, Cloud Run, VPS):
 
-### 3. Deploy the Next.js Code
-1. Push this repository to your GitHub profile.
-2. In Vercel, click **Add New** > **Project** and import this repository.
-3. Under the **Environment Variables** configuration panel, declare the following secrets:
-   - `ADMIN_PASSWORD`: Your chosen admin dashboard secret password.
-   - `TURSO_DATABASE_URL`: Your Turso DB URL.
-   - `TURSO_AUTH_TOKEN`: Your Turso authentication bearer token.
-4. Click **Deploy**. Vercel will compile the full stack app, expose your routes, and host your V2Ray Subscription Manager instantly!
+| Environment Variable | Description | Example Value | Required |
+|---|---|---|---|
+| `ADMIN_PASSWORD` | The master passkey used to access the Limoo panel. | `mySecretAdminPass123` | **Yes** |
+| `TURSO_DATABASE_URL` | Turso connection protocol URL. If missing, defaults to SQLite file. | `libsql://my-database-user.turso.io` | No (falls back to local SQLite) |
+| `TURSO_AUTH_TOKEN` | Bearer authorization token provided by your Turso instance. | `eyJhbGciOiJ...` | No (only if using Turso URL) |
+
+### Part 2: Deployment Steps
+
+#### 1. Database Setup (Turso)
+1. Go to your **Turso Web Console** or use your CLI terminal.
+2. Direct-create a database instance.
+3. Copy your **Database URL** and **Authentication Bearer Token**.
+
+#### 2. Deploy on Vercel / Cloud Provider
+1. Sync or upload your repository to **GitHub**.
+2. Go to **Vercel**, click **Add New > Project**, and import this repository.
+3. Expand **Environment Variables** and enter:
+   - `ADMIN_PASSWORD`
+   - `TURSO_DATABASE_URL` *(Optional)*
+   - `TURSO_AUTH_TOKEN` *(Optional)*
+4. Keep compilation configurations to default (`next build`).
+5. Click **Deploy**.
 
 ---
 
-## 🛠️ Local Development & Development Container Use
+## 🚀 Local Development
 
-When running this app dynamically in development containers (or within the AI Studio workspace), you do not need active remote Turso services. The system naturally checks for the absence of `TURSO_DATABASE_URL` and cleanly operates with a secure offline file SQLite database fallback `v2ray_local.db` in your project root!
+For quick local testing or sandbox environment deployments:
+
+1. **Clone & Install Dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Configure Environment Variables**:
+   Create a `.env` in the root folder:
+   ```env
+   ADMIN_PASSWORD=admin123
+   ```
+
+3. **Launch the Development Server**:
+   ```bash
+   npm run dev
+   ```
+
+4. Open [http://localhost:3000](http://localhost:3000) inside your web browser. Limoo will auto-generate system tables inside an offline sqlite database file (`v2ray_local.db`) at the root!
