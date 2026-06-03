@@ -60,8 +60,9 @@ export async function POST(req: NextRequest) {
         const enabledFormatsEqual = JSON.stringify(subData.enabledFormats !== undefined ? subData.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]) === JSON.stringify(existingSub.enabledFormats !== undefined ? existingSub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]);
         const customFormatPayloadsEqual = JSON.stringify(subData.customFormatPayloads || {}) === JSON.stringify(existingSub.customFormatPayloads || {});
         const defaultFormatEqual = (subData.defaultFormat || "") === (existingSub.defaultFormat || "");
+        const additionalLinkEqual = (subData.additionalLink || "") === (existingSub.additionalLink || "");
 
-        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual) {
+        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual) {
           // No changes detected! Avoid database update transaction completely.
           return NextResponse.json({ success: true, subscriptions: currentList, noChanges: true });
         }
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
             enabledFormats: subData.enabledFormats !== undefined ? subData.enabledFormats : ["links", "plain", "sing-box", "clash", "json"],
             customFormatPayloads: subData.customFormatPayloads || {},
             defaultFormat: subData.defaultFormat || "",
+            additionalLink: subData.additionalLink || "",
             updatedAt: new Date().toISOString(),
           };
         }
@@ -98,6 +100,7 @@ export async function POST(req: NextRequest) {
         enabledFormats: subData.enabledFormats !== undefined ? subData.enabledFormats : ["links", "plain", "sing-box", "clash", "json"],
         customFormatPayloads: subData.customFormatPayloads || {},
         defaultFormat: subData.defaultFormat || "",
+        additionalLink: subData.additionalLink || "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

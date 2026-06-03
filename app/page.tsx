@@ -136,6 +136,7 @@ export default function Dashboard() {
   const [editEnabledFormats, setEditEnabledFormats] = useState<string[]>(["links", "plain", "sing-box", "clash", "json"]);
   const [editCustomFormatPayloads, setEditCustomFormatPayloads] = useState<Record<string, string>>({});
   const [editDefaultFormat, setEditDefaultFormat] = useState<string>("");
+  const [editAdditionalLink, setEditAdditionalLink] = useState("");
 
   // Dummy config builder state
   const [newDummyName, setNewDummyName] = useState("");
@@ -210,6 +211,7 @@ export default function Dashboard() {
     setEditEnabledFormats(sub.enabledFormats !== undefined ? sub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]);
     setEditCustomFormatPayloads(sub.customFormatPayloads || {});
     setEditDefaultFormat(sub.defaultFormat || "");
+    setEditAdditionalLink(sub.additionalLink || "");
     
     if (activeTab === "metrics") {
       fetchAccessMetrics(sub.path);
@@ -291,6 +293,7 @@ export default function Dashboard() {
           setEditJsonConfigs(first.jsonConfigs || "");
           setEditDummyConfigs(first.dummyConfigs || []);
           setEditNameOverrides(first.nameOverrides || {});
+          setEditAdditionalLink(first.additionalLink || "");
         }
       }
     } catch (err: any) {
@@ -322,6 +325,7 @@ export default function Dashboard() {
             setEditJsonConfigs(first.jsonConfigs || "");
             setEditDummyConfigs(first.dummyConfigs || []);
             setEditNameOverrides(first.nameOverrides || {});
+            setEditAdditionalLink(first.additionalLink || "");
           }
         }
         setIsRefreshing(false);
@@ -565,8 +569,9 @@ export default function Dashboard() {
       const enabledFormatsEqual = JSON.stringify(editEnabledFormats) === JSON.stringify(activeSub.enabledFormats !== undefined ? activeSub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]);
       const customFormatPayloadsEqual = JSON.stringify(editCustomFormatPayloads) === JSON.stringify(activeSub.customFormatPayloads || {});
       const defaultFormatEqual = editDefaultFormat === (activeSub.defaultFormat || "");
+      const additionalLinkEqual = editAdditionalLink === (activeSub.additionalLink || "");
 
-      if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual) {
+      if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual) {
         showToast("No changes detected. Configuration is up to date!", "info");
         return;
       }
@@ -584,6 +589,7 @@ export default function Dashboard() {
       enabledFormats: editEnabledFormats,
       customFormatPayloads: editCustomFormatPayloads,
       defaultFormat: editDefaultFormat,
+      additionalLink: editAdditionalLink,
     };
 
     try {
@@ -1162,42 +1168,44 @@ export default function Dashboard() {
                 </div>
 
                 {/* Live Client Link Generation Panel */}
-                <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 space-y-4">
+                <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 space-y-3">
                   {(() => {
                     const subNameHash = editName ? `#${encodeURIComponent(editName)}` : "";
+                    const gatewayUrl = `${appOrigin}/sub/${editPath}${subNameHash}`;
                     return (
                       <>
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                              Default JSON Subscription Feed (Raw Config Objects - Default)
+                              🎯 Unified Gateway Client Subscription Link
                             </span>
-                            <span className="text-[10px] text-teal-400 bg-teal-500/10 border border-teal-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                              JSON Feed
+                            <span className="text-[10px] text-lime-400 bg-lime-400/10 border border-lime-400/20 rounded px-2 py-0.5 font-bold font-mono">
+                              ACTIVE
                             </span>
                           </div>
 
                           {editPath ? (
                             <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all">
-                                {`${appOrigin}/sub/${editPath}${subNameHash}`}
+                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-lime-400 truncate select-all font-semibold">
+                                {gatewayUrl}
                               </div>
                               
                               <button
+                                type="button"
                                 id="copy_sub_link_btn"
-                                onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}${subNameHash}`, "standard")}
+                                onClick={() => copyToClipboard(gatewayUrl, "standard")}
                                 className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
-                                title="Copy subscription address"
+                                title="Copy gateway subscription address"
                               >
-                                {copiedLink === "standard" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                                {copiedLink === "standard" ? <Check className="h-4 w-4 text-lime-400" /> : <Copy className="h-4 w-4" />}
                               </button>
 
                               <a
-                                href={`/sub/${editPath}${subNameHash}`}
+                                href={gatewayUrl}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                                title="Inspect raw details in browser"
+                                title="Inspect client gateway in browser"
                               >
                                 <ExternalLink className="h-4 w-4" />
                               </a>
@@ -1206,126 +1214,12 @@ export default function Dashboard() {
                             <p className="text-xs text-slate-500 font-mono">Fill in a valid slug path structure above</p>
                           )}
                         </div>
-
-                        {editPath && (
-                          <div className="pt-2 border-t border-slate-800/80">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                                Legacy Base64 Links Feed (Standard client subscription compatible)
-                              </span>
-                              <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                                Links Feed
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
-                                {`${appOrigin}/sub/${editPath}?format=links${subNameHash}`}
-                              </div>
-                              
-                              <button
-                                id="copy_sub_json_link_btn"
-                                onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}?format=links${subNameHash}`, "json_format")}
-                                className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
-                                title="Copy Base64 subscription address"
-                              >
-                                {copiedLink === "json_format" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                              </button>
-
-                              <a
-                                href={`/sub/${editPath}?format=links${subNameHash}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                                title="View output Base64 Links"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </div>
-                          </div>
-                        )}
-
-                        {editPath && (
-                          <div className="pt-2 border-t border-slate-800/80">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                                Sing-Box JSON Configuration Profile (Direct Client Compatible)
-                              </span>
-                              <span className="text-[10px] text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                                Sing-Box
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
-                                {`${appOrigin}/sub/${editPath}/sing-box${subNameHash}`}
-                              </div>
-                              
-                              <button
-                                id="copy_sub_singbox_btn"
-                                onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}/sing-box${subNameHash}`, "singbox")}
-                                className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
-                                title="Copy Sing-Box subscription address"
-                              >
-                                {copiedLink === "singbox" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                              </button>
-
-                              <a
-                                href={`/sub/${editPath}/sing-box${subNameHash}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                                title="View output Singbox JSON"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </div>
-                          </div>
-                        )}
-
-                        {editPath && (
-                          <div className="pt-2 border-t border-slate-800/80">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                                Clash Premium YAML Configuration Profile (Clash/Meta Compatible)
-                              </span>
-                              <span className="text-[10px] text-sky-450 bg-sky-500/10 border border-sky-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                                Clash Premium
-                              </span>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
-                                {`${appOrigin}/sub/${editPath}/clash${subNameHash}`}
-                              </div>
-                              
-                              <button
-                                id="copy_sub_clash_btn"
-                                onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}/clash${subNameHash}`, "clash")}
-                                className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
-                                title="Copy Clash subscription address"
-                              >
-                                {copiedLink === "clash" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                              </button>
-
-                              <a
-                                href={`/sub/${editPath}/clash${subNameHash}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                                title="View output Clash YAML"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </div>
-                          </div>
-                        )}
                       </>
                     );
                   })()}
 
                   <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-                    Clients such as <strong>Sing-Box</strong>, <strong>Clash Meta</strong>, <strong>V2RayN</strong>, <strong>Shadowrocket</strong>, or <strong>v2rayNG</strong> query these URLs dynamically to obtain up-to-date active nodes! Standard V2Ray client apps expect <strong>Links Feed</strong>, while modern proxies directly utilize native <strong>Sing-Box</strong> or <strong>Clash</strong> configs.
+                    Clients such as <strong>V2RayN</strong>, <strong>Shadowrocket</strong>, <strong>v2rayNG</strong>, or browser sessions query this secure URL dynamically. Standard proxy apps receive the decoded Base64 node feed, while browser requests view the interactive interface.
                   </p>
                 </div>
               </div>
@@ -1486,247 +1380,35 @@ export default function Dashboard() {
                 </div>
               </div>
 
-
-              {/* SECTION: 4. FORMAT AVAILABILITY & PASTE CUSTOM PAYLOAD */}
-              <div id="section_format_payloads" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
+              {/* SECTION: 4. ADDITIONAL ROUTING CONFIG FEED LINK */}
+              <div id="section_additional_feed" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <Layers className="h-5 w-5 text-sky-400 shrink-0" />
+                  <Link className="h-5 w-5 text-sky-400 shrink-0" />
                   <h3 className="text-sm font-semibold text-white tracking-wide">
-                    4. Format Availability & Paste Custom Code
+                    4. Optional Alternative Config Feed Link
                   </h3>
                 </div>
 
                 <div className="space-y-4">
                   <p className="text-xs text-slate-400 leading-relaxed font-sans">
-                    Enable or disable specific formats for this subscription. Unchecked formats will be inaccessible (403 Forbidden) and removed from browser visualization tabs.
-                    Optionally, you can paste or upload custom JSON code (or yaml/text config) for any of these. If a custom override payload is pasted, the system will serve that custom payload directly instead of auto-converting raw config.
+                    Optionally provide an additional subscription URL, external feed, or a list of raw proxies. 
+                    Any nodes fetched from this secondary link are merged directly into the subscriber&apos;s list 
+                    <strong> without undergoing name overrides, custom naming rules, or filter rules</strong>.
+                    This remains isolated from core configs and will not confuse users!
                   </p>
 
-                  <div className="grid grid-cols-1 gap-4">
-                    {availableFormatsList.map((fmt) => {
-                      const isChecked = editEnabledFormats.includes(fmt.key);
-                      const customPayload = editCustomFormatPayloads[fmt.key] || "";
-                      const hasCustomPayload = customPayload.length > 0;
-                      
-                      return (
-                        <div key={fmt.key} className="p-4 bg-slate-900/50 border border-slate-850 rounded-xl space-y-3 transition-all hover:border-slate-800">
-                          <div className="flex items-center justify-between">
-                            <label className="flex items-center gap-3 cursor-pointer select-none">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setEditEnabledFormats([...editEnabledFormats, fmt.key]);
-                                  } else {
-                                    setEditEnabledFormats(editEnabledFormats.filter(item => item !== fmt.key));
-                                  }
-                                }}
-                                className="w-4 h-4 text-sky-500 bg-slate-950 border-slate-800 rounded focus:ring-sky-500 focus:ring-offset-bg underline shrink-0"
-                              />
-                              <div>
-                                <span className={`text-xs font-bold leading-none ${isChecked ? 'text-teal-400' : 'text-slate-405'}`}>
-                                  {fmt.label}
-                                </span>
-                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">{fmt.desc}</p>
-                              </div>
-                            </label>
-                            
-                            {isChecked && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const updated = { ...editCustomFormatPayloads };
-                                  if (hasCustomPayload) {
-                                    delete updated[fmt.key];
-                                  } else {
-                                    // Initialize with standard empty spaces or clear text
-                                    updated[fmt.key] = " ";
-                                  }
-                                  setEditCustomFormatPayloads(updated);
-                                }}
-                                className="text-[10px] font-mono px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
-                              >
-                                {hasCustomPayload ? "❌ Remove Custom Override" : "✍️ Paste Custom Code Override"}
-                              </button>
-                            )}
-                          </div>
-
-                          {isChecked && hasCustomPayload && (
-                            <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
-                              <span className="text-[10px] text-amber-400/80 font-mono block">
-                                Paste custom payload (JSON/YAML/Raw Text) for {fmt.key}:
-                              </span>
-                              <textarea
-                                value={customPayload === " " ? "" : customPayload}
-                                onChange={(e) => {
-                                  const updated = { ...editCustomFormatPayloads };
-                                  updated[fmt.key] = e.target.value;
-                                  setEditCustomFormatPayloads(updated);
-                                }}
-                                placeholder={fmt.placeholder}
-                                rows={6}
-                                className="w-full block p-3 bg-slate-950 border border-slate-800 rounded-lg text-amber-400 placeholder-slate-800 text-xs font-mono focus:outline-none focus:border-sky-550 leading-relaxed"
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="pt-4 border-t border-slate-800/80 space-y-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-base select-none">🎯</span>
-                      <label className="text-xs font-bold text-slate-350">
-                        Default Profile Format
-                      </label>
-                    </div>
-                    <p className="text-[10px] text-slate-500 font-sans leading-normal">
-                      Select which format should be selected by default when the user loads the subscription gateway screen. If only 1 format is enabled, it automatically becomes the default and the only option shown.
-                    </p>
-                    <select
-                      value={editDefaultFormat}
-                      onChange={(e) => setEditDefaultFormat(e.target.value)}
-                      className="w-full max-w-sm block p-2.5 bg-slate-900 border border-slate-800 rounded-lg text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
-                    >
-                      <option value="">-- Dynamic Default (Automatic based on priority) --</option>
-                      {availableFormatsList.map((fmt) => (
-                        <option 
-                          key={fmt.key} 
-                          value={fmt.key} 
-                          disabled={!editEnabledFormats.includes(fmt.key)}
-                        >
-                          {fmt.label} {!editEnabledFormats.includes(fmt.key) ? "(Disabled)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-
-              {/* SECTION: 5. SHADOW / DUMMY ANNOUNCEMENTS DATA */}
-              <div id="section_dummy_configs" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
-                <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <Info className="h-5 w-5 text-sky-400 shrink-0" />
-                  <h3 className="text-sm font-semibold text-white tracking-wide">
-                    5. Dummy Configuration Banners & Announcements
-                  </h3>
-                </div>
-
-                <div className="space-y-4">
-                  <p className="text-xs text-slate-400 leading-relaxed font-sans">
-                    Construct passive configurations to display custom bulletins, notifications, system metrics, or countdowns. V2Ray client platforms display these customized banners directly in user client node lists! Only the Name values are meaningful.
-                  </p>
-
-                  {/* Predefined Templates buttons */}
-                  <div className="flex flex-wrap items-center gap-2.5 bg-slate-900 p-3 rounded-xl border border-slate-850">
-                    <span className="text-[10px] font-mono font-semibold uppercase text-slate-500">
-                      💡 Load Preset:
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => loadDummyTemplate("expire")}
-                      className="px-2.5 py-1.5 bg-slate-950 hover:bg-slate-850 text-[10.5px] rounded border border-slate-800 hover:border-slate-705 text-slate-300 transition"
-                    >
-                      ⏳ Expiration Countdown
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => loadDummyTemplate("data")}
-                      className="px-2.5 py-1.5 bg-slate-950 hover:bg-slate-850 text-[10.5px] rounded border border-slate-800 hover:border-slate-705 text-slate-300 transition"
-                    >
-                      📊 Traffic Left Indicators
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => loadDummyTemplate("promo")}
-                      className="px-2.5 py-1.5 bg-slate-950 hover:bg-slate-850 text-[10.5px] rounded border border-slate-800 hover:border-slate-705 text-slate-300 transition"
-                    >
-                      📢 Campaign Announcement
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-slate-900 p-4 rounded-xl border border-slate-850">
-                    <div className="md:col-span-8">
-                      <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                        Display Info / Banner Announcement text
-                      </label>
-                      <input
-                        id="input_dummy_name"
-                        type="text"
-                        value={newDummyName}
-                        onChange={(e) => setNewDummyName(e.target.value)}
-                        placeholder="📢 System Alert: Server 2 scheduled migration today"
-                        className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-
-                    <div className="md:col-span-3">
-                      <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                        Sub-Text URL Anchor
-                      </label>
-                      <input
-                        id="input_dummy_host"
-                        type="text"
-                        value={newDummyHost}
-                        onChange={(e) => setNewDummyHost(e.target.value)}
-                        placeholder="v2ray.info"
-                        className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-sky-500 font-mono"
-                      />
-                    </div>
-
-                    <div className="md:col-span-1 flex items-end justify-end">
-                      <button
-                        id="add_dummy_btn"
-                        type="button"
-                        onClick={handleAddDummy}
-                        className="w-full py-2 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 rounded-lg text-white transition flex items-center justify-center font-bold"
-                        title="Add notification card"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Dummies display rendering list */}
-                  <div className="space-y-2.5 pt-2">
-                    {editDummyConfigs.length === 0 ? (
-                      <p className="text-xs text-slate-500 italic text-center py-4 bg-slate-900/30 border border-dashed border-slate-850 rounded-xl">
-                        No informational dummy nodes are configured. Adding announcements is highly recommended to display stats in user clients.
-                      </p>
-                    ) : (
-                      <div className="space-y-2 max-h-[16rem] overflow-y-auto pr-1">
-                        {editDummyConfigs.map((dummy, idx) => (
-                          <div
-                            key={dummy.id || idx}
-                            className="bg-slate-900/60 border border-slate-850 p-3 rounded-xl flex items-center justify-between"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-[10px] bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800 font-mono text-indigo-400 shrink-0 uppercase tracking-wider font-semibold">
-                                {dummy.protocol}
-                              </span>
-                              <span className="text-xs font-semibold text-slate-200">
-                                {dummy.name}
-                              </span>
-                              <span className="text-[10px] text-slate-500 font-mono font-medium truncate hidden md:inline">
-                                ({dummy.targetHost})
-                              </span>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteDummy(dummy.id)}
-                              className="text-slate-500 hover:text-red-400 p-1 rounded transition"
-                              title="Remove Dummy connection"
-                            >
-                              <Trash className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 font-mono">
+                      Alternative Subscription Feed URL or Config Raw Link
+                    </label>
+                    <input
+                      id="input_additional_link"
+                      type="text"
+                      value={editAdditionalLink}
+                      onChange={(e) => setEditAdditionalLink(e.target.value)}
+                      placeholder="e.g. https://another.provider/sub/abc or ss://...#custom-node"
+                      className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500 font-mono text-sky-305"
+                    />
                   </div>
                 </div>
               </div>

@@ -17,6 +17,7 @@ export interface Subscription {
   enabledFormats?: string[]; // list of active format keys
   customFormatPayloads?: Record<string, string>; // pasted code index overrides
   defaultFormat?: string; // default pre-selected format
+  additionalLink?: string; // alternative/additional proxy configs/links appended raw
   createdAt: string;
   updatedAt: string;
 }
@@ -813,7 +814,8 @@ export function buildDummyConfigLink(dummy: DummyConfig): string {
  */
 export function generateProcessedSubscription(
   sub: Subscription,
-  format: "links" | "plain" | "json" | "sing-box" | "clash" = "links"
+  format: "links" | "plain" | "json" | "sing-box" | "clash" = "links",
+  fetchedAdditionalConfigs: string[] = []
 ): string {
   // If custom format payload exists for this specific format and is not empty, use it directly!
   if (sub.customFormatPayloads && sub.customFormatPayloads[format] !== undefined && sub.customFormatPayloads[format].trim() !== "") {
@@ -832,18 +834,15 @@ export function generateProcessedSubscription(
 
   const activeFormat = format === "plain" ? "links" : format;
   const configsList = extractConfigsList(sub.jsonConfigs);
-  const template = (sub.remarksTemplate && sub.remarksTemplate.trim()) ? sub.remarksTemplate : "Server *";
 
-  // Process item remarks and formats
+  // Process item remarks and formats - ONLY include those that have been explicitly renamed
   const processedConfigs = configsList.map((item, index) => {
-    const oneBasedIndex = index + 1;
-    let remarkName = template.includes("*")
-      ? template.replaceAll("*", String(oneBasedIndex))
-      : `${template} ${oneBasedIndex}`;
-
-    if (sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "") {
-      remarkName = sub.nameOverrides[String(index)].trim();
+    // Only configs that have custom override/renaming should be processed!
+    const hasOverrideName = sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "";
+    if (!hasOverrideName) {
+      return null;
     }
+    const remarkName = sub.nameOverrides![String(index)].trim();
 
     if (typeof item === "string") {
       return updateConfigRemark(item, remarkName);
@@ -852,7 +851,7 @@ export function generateProcessedSubscription(
       clonedObj.remarks = remarkName;
       return clonedObj;
     }
-    return "";
+    return null;
   }).filter(Boolean);
 
   // Parse list into structured objects
@@ -863,20 +862,25 @@ export function generateProcessedSubscription(
     return null;
   }).filter(Boolean) as ParsedProxy[];
 
+  // Merge parsed/fetched additional configs
+  const mergedAdditional: string[] = [];
+  if (fetchedAdditionalConfigs && fetchedAdditionalConfigs.length > 0) {
+    mergedAdditional.push(...fetchedAdditionalConfigs);
+  } else if (sub.additionalLink && !sub.additionalLink.trim().startsWith("http")) {
+    const rawLines = sub.additionalLink.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    mergedAdditional.push(...rawLines);
+  }
+
   if (activeFormat === "sing-box") {
     const sbProxies = parsedProxies.map(convertToSingBoxOutbound);
-    const sbDummies = (sub.dummyConfigs || []).map((dummy, idx) => {
-      const dummyProxy: ParsedProxy = {
-        id: `dummy_${idx}`,
-        protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
-        name: dummy.name,
-        server: dummy.targetHost || "127.0.0.1",
-        port: 443,
-      };
-      return convertToSingBoxOutbound(dummyProxy);
-    });
+    
+    // Parse any additional proxy strings to convert them into Sing-Box outbounds
+    const sbAdditional = mergedAdditional.map((link, idx) => {
+      const parsed = parseV2rayLink(link, idx + 10000);
+      return parsed ? convertToSingBoxOutbound(parsed) : null;
+    }).filter(Boolean);
 
-    const allOutbounds = [...sbDummies, ...sbProxies];
+    const allOutbounds = [...sbAdditional, ...sbProxies];
     const singBoxConfig = {
       log: {
         level: "info",
@@ -957,18 +961,13 @@ export function generateProcessedSubscription(
 
   if (activeFormat === "clash") {
     const clashProxies = parsedProxies.map(convertToClashProxy);
-    const clashDummies = (sub.dummyConfigs || []).map((dummy, idx) => {
-      const dummyProxy: ParsedProxy = {
-        id: `dummy_${idx}`,
-        protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
-        name: dummy.name,
-        server: dummy.targetHost || "127.0.0.1",
-        port: 443,
-      };
-      return convertToClashProxy(dummyProxy);
-    });
+    
+    const clashAdditional = mergedAdditional.map((link, idx) => {
+      const parsed = parseV2rayLink(link, idx + 10000);
+      return parsed ? convertToClashProxy(parsed) : null;
+    }).filter(Boolean);
 
-    const allClashProxies = [...clashDummies, ...clashProxies];
+    const allClashProxies = [...clashAdditional, ...clashProxies];
     const clashYamlHeader = `port: 7890\nsocks-port: 7891\nallow-lan: true\nmode: Rule\nlog-level: info\nexternal-controller: '127.0.0.1:9090'\n\ndns:\n  enable: true\n  ipv6: false\n  listen: 0.0.0.0:53\n  enhanced-mode: fake-ip\n  nameserver:\n    - 114.114.114.114\n    - 8.8.8.8\n  fallback:\n    - https://8.8.8.8/dns-query\n\n`;
     const proxiesYaml = convertArrayToYaml(allClashProxies, "  ");
     const groupsYaml = `\nproxy-groups:\n  - name: PROXIES\n    type: select\n    proxies:\n      - DIRECT\n      - AUTO_SELECT\n      ${allClashProxies.map(p => `- "${p.name}"`).join("\n      ")}\n  - name: AUTO_SELECT\n    type: url-test\n    url: http://www.gstatic.com/generate_204\n    interval: 300\n    tolerance: 50\n    proxies:\n      ${allClashProxies.map(p => `- "${p.name}"`).join("\n      ")}\n\nrules:\n  - DOMAIN-SUFFIX,google.com,PROXIES\n  - DOMAIN-KEYWORD,google,PROXIES\n  - DOMAIN-SUFFIX,github.com,PROXIES\n  - GEOIP,CN,DIRECT\n  - MATCH,PROXIES\n`;
@@ -977,41 +976,39 @@ export function generateProcessedSubscription(
   }
 
   if (activeFormat === "json") {
-    const dummyNodes = (sub.dummyConfigs || []).map(dummy => ({
-      remarks: dummy.name,
-      outbounds: [
-        {
-          protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
-          settings: {
-            vnext: [
-              {
-                address: dummy.targetHost || "127.0.5.1",
-                port: 443,
-                users: [
-                  {
-                    id: "00000000-0000-0000-0000-000000000000",
-                    encryption: "none"
-                  }
-                ]
-              }
-            ]
+    const clashAdditional = mergedAdditional.map((link, idx) => {
+      const parsed = parseV2rayLink(link, idx + 10000);
+      if (!parsed) return null;
+      return {
+        remarks: parsed.name,
+        outbounds: [
+          {
+            protocol: parsed.protocol,
+            settings: {
+              vnext: [
+                {
+                  address: parsed.server,
+                  port: parsed.port,
+                  users: [
+                    {
+                      id: parsed.uuid || "",
+                      encryption: "none"
+                    }
+                  ]
+                }
+              ]
+            }
           }
-        }
-      ],
-      tag: `dummy-${dummy.id}`
-    }));
+        ],
+        tag: parsed.id
+      };
+    }).filter(Boolean);
 
-    return JSON.stringify([...dummyNodes, ...processedConfigs], null, 2);
+    return JSON.stringify([...clashAdditional, ...processedConfigs], null, 2);
   }
 
   // Fallback to "links" format
   const processedLines: string[] = [];
-
-  if (sub.dummyConfigs && sub.dummyConfigs.length > 0) {
-    sub.dummyConfigs.forEach(dummy => {
-      processedLines.push(buildDummyConfigLink(dummy));
-    });
-  }
 
   processedConfigs.forEach(item => {
     if (typeof item === "string") {
@@ -1022,6 +1019,11 @@ export function generateProcessedSubscription(
         processedLines.push(converted);
       }
     }
+  });
+
+  // Append raw additional config verbatim (it bypasses renaming, overrides, templates)
+  mergedAdditional.forEach(line => {
+    processedLines.push(line);
   });
 
   return processedLines.join("\n");
