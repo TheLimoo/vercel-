@@ -18,8 +18,493 @@ export interface Subscription {
   updatedAt: string;
 }
 
+export interface ParsedProxy {
+  id: string;
+  protocol: "vless" | "vmess" | "trojan" | "ss" | "info";
+  name: string;
+  server: string;
+  port: number;
+  uuid?: string;
+  password?: string;
+  method?: string;
+  security?: string;
+  network?: string;
+  sni?: string;
+  path?: string;
+  host?: string;
+  publicKey?: string;
+  shortId?: string;
+  fingerprint?: string;
+}
+
 /**
- * Normalizes input text which might be a JSON list or plaintext newline-separated list of configs.
+ * Universal V2Ray/Xray URL parser supporting vless, vmess, trojan, ss, etc.
+ */
+export function parseV2rayLink(link: string, index: number = 0): ParsedProxy | null {
+  try {
+    const trimmed = link.trim();
+    if (!trimmed) return null;
+
+    if (trimmed.startsWith("vmess://")) {
+      const b64Data = trimmed.substring(8).trim();
+      const decoded = Buffer.from(b64Data, "base64").toString("utf-8");
+      const json = JSON.parse(decoded);
+      return {
+        id: `vmess_${index}`,
+        protocol: "vmess",
+        name: json.ps || `VMess Server ${index + 1}`,
+        server: json.add || "127.0.0.1",
+        port: parseInt(json.port) || 443,
+        uuid: json.id,
+        network: json.net || "tcp",
+        security: json.tls === "tls" ? "tls" : "none",
+        host: json.host || "",
+        path: json.path || "",
+        sni: json.sni || ""
+      };
+    }
+
+    if (trimmed.startsWith("vless://") || trimmed.startsWith("trojan://") || trimmed.startsWith("ss://")) {
+      const protocol = trimmed.split("://")[0] as any;
+      const hashIndex = trimmed.indexOf("#");
+      let remark = `Server ${index + 1}`;
+      let mainPart = trimmed;
+      if (hashIndex !== -1) {
+        mainPart = trimmed.substring(0, hashIndex);
+        try {
+          remark = decodeURIComponent(trimmed.substring(hashIndex + 1));
+        } catch {
+          remark = trimmed.substring(hashIndex + 1);
+        }
+      }
+
+      const rest = mainPart.substring(protocol.length + 3);
+      const atIndex = rest.indexOf("@");
+      if (atIndex === -1) return null;
+      const credentials = rest.substring(0, atIndex);
+      const hostPortQuery = rest.substring(atIndex + 1);
+
+      const queryMark = hostPortQuery.indexOf("?");
+      let hostPort = hostPortQuery;
+      let queryStr = "";
+      if (queryMark !== -1) {
+        hostPort = hostPortQuery.substring(0, queryMark);
+        queryStr = hostPortQuery.substring(queryMark + 1);
+      }
+
+      const colonIndex = hostPort.lastIndexOf(":");
+      if (colonIndex === -1) return null;
+      const server = hostPort.substring(0, colonIndex);
+      const port = parseInt(hostPort.substring(colonIndex + 1)) || 443;
+
+      const queryParams = new URLSearchParams(queryStr);
+      const network = queryParams.get("type") || "tcp";
+      const security = queryParams.get("security") || "none";
+      const sni = queryParams.get("sni") || "";
+      const path = queryParams.get("path") || queryParams.get("serviceName") || "";
+      const host = queryParams.get("host") || "";
+      const publicKey = queryParams.get("pbk") || "";
+      const shortId = queryParams.get("sid") || "";
+      const fingerprint = queryParams.get("fp") || "";
+
+      return {
+        id: `${protocol}_${index}`,
+        protocol,
+        name: remark,
+        server,
+        port,
+        uuid: protocol === "vless" ? credentials : undefined,
+        password: (protocol === "trojan" || protocol === "ss") ? credentials : undefined,
+        security,
+        network,
+        sni,
+        path,
+        host,
+        publicKey,
+        shortId,
+        fingerprint
+      };
+    }
+  } catch (err) {
+    console.warn("Failed parsing V2Ray link: ", link, err);
+  }
+  return null;
+}
+
+/**
+ * Universal V2Ray URL generator matching ParsedProxy properties
+ */
+export function convertToShareLink(proxy: ParsedProxy): string {
+  const remark = proxy.name || "Config";
+  if (proxy.protocol === "vmess") {
+    const vmessJsonObj: Record<string, any> = {
+      v: "2",
+      ps: remark,
+      add: proxy.server,
+      port: proxy.port,
+      id: proxy.uuid || "",
+      aid: "0",
+      scy: "auto",
+      net: proxy.network || "tcp",
+      type: "none",
+      host: proxy.host || "",
+      path: proxy.path || "",
+      tls: proxy.security === "tls" ? "tls" : "",
+      sni: proxy.sni || ""
+    };
+    const vmessB64 = Buffer.from(JSON.stringify(vmessJsonObj), "utf-8").toString("base64");
+    return `vmess://${vmessB64}`;
+  }
+
+  if (proxy.protocol === "vless") {
+    const queryParams: string[] = [];
+    queryParams.push(`security=${proxy.security || "none"}`);
+    queryParams.push(`type=${proxy.network || "tcp"}`);
+    if (proxy.sni) queryParams.push(`sni=${proxy.sni}`);
+    if (proxy.host) queryParams.push(`host=${proxy.host}`);
+    if (proxy.path) {
+      if (proxy.network === "grpc") {
+        queryParams.push(`serviceName=${encodeURIComponent(proxy.path)}`);
+      } else {
+        queryParams.push(`path=${encodeURIComponent(proxy.path)}`);
+      }
+    }
+    if (proxy.publicKey) queryParams.push(`pbk=${proxy.publicKey}`);
+    if (proxy.shortId) queryParams.push(`sid=${proxy.shortId}`);
+    if (proxy.fingerprint) queryParams.push(`fp=${proxy.fingerprint}`);
+
+    const queryStr = queryParams.length > 0 ? `?${queryParams.join("&")}` : "";
+    return `vless://${proxy.uuid || ""}@${proxy.server}:${proxy.port}${queryStr}#${encodeURIComponent(remark)}`;
+  }
+
+  if (proxy.protocol === "trojan") {
+    const queryParams: string[] = [];
+    queryParams.push(`security=${proxy.security || "none"}`);
+    queryParams.push(`type=${proxy.network || "tcp"}`);
+    if (proxy.sni) queryParams.push(`sni=${proxy.sni}`);
+    if (proxy.host) queryParams.push(`host=${proxy.host}`);
+    if (proxy.path) queryParams.push(`path=${encodeURIComponent(proxy.path)}`);
+
+    const queryStr = queryParams.length > 0 ? `?${queryParams.join("&")}` : "";
+    return `trojan://${proxy.password || ""}@${proxy.server}:${proxy.port}${queryStr}#${encodeURIComponent(remark)}`;
+  }
+
+  if (proxy.protocol === "ss") {
+    const creds = proxy.password || "";
+    let finalCreds = creds;
+    if (proxy.method && !creds.includes("@") && !creds.includes(":")) {
+      finalCreds = Buffer.from(`${proxy.method}:${creds}`, "utf-8").toString("base64");
+    }
+    return `ss://${finalCreds}@${proxy.server}:${proxy.port}#${encodeURIComponent(remark)}`;
+  }
+
+  return "";
+}
+
+/**
+ * Maps sing-box outbound protocol scheme back to standard ParsedProxy interface.
+ */
+export function parseSingBoxOutbound(obj: any, index: number = 0): ParsedProxy | null {
+  try {
+    if (!obj || typeof obj !== "object") return null;
+    const type = obj.type;
+    const isProxy = type === "vless" || type === "vmess" || type === "trojan" || type === "shadowsocks" || type === "ss";
+    if (!isProxy) return null;
+
+    const protocol = type === "shadowsocks" ? "ss" : type;
+    const name = obj.tag || `Node #${index + 1}`;
+    const server = obj.server || "127.0.0.1";
+    const port = obj.server_port || 443;
+
+    const uuid = obj.uuid;
+    const password = obj.password;
+    const method = obj.method;
+
+    let security = "none";
+    let sni = "";
+    let publicKey = "";
+    let shortId = "";
+    let fingerprint = "";
+
+    if (obj.tls?.enabled) {
+      security = "tls";
+      sni = obj.tls.server_name || "";
+      if (obj.tls.reality?.enabled) {
+        security = "reality";
+        publicKey = obj.tls.reality.public_key || "";
+        shortId = obj.tls.reality.short_id || "";
+      }
+      if (obj.tls.utls?.enabled && obj.tls.utls.fingerprint) {
+        fingerprint = obj.tls.utls.fingerprint;
+      }
+    }
+
+    let network = "tcp";
+    let path = "";
+    let host = "";
+
+    if (obj.transport) {
+      if (obj.transport.type === "ws") {
+        network = "ws";
+        path = obj.transport.path || "/";
+        host = obj.transport.headers?.Host || obj.transport.headers?.host || "";
+      } else if (obj.transport.type === "grpc") {
+        network = "grpc";
+        path = obj.transport.service_name || "";
+      }
+    }
+
+    return {
+      id: `sb_${protocol}_${index}`,
+      protocol,
+      name,
+      server,
+      port,
+      uuid,
+      password,
+      method,
+      security,
+      network,
+      sni,
+      path,
+      host,
+      publicKey,
+      shortId,
+      fingerprint
+    };
+  } catch (err) {
+    console.warn("Failed to parse sing-box outbound: ", obj, err);
+  }
+  return null;
+}
+
+/**
+ * Maps Clash proxy structure back to standard ParsedProxy interface.
+ */
+export function parseClashProxy(obj: any, index: number = 0): ParsedProxy | null {
+  try {
+    if (!obj || typeof obj !== "object") return null;
+    const type = obj.type;
+    const isProxy = type === "vless" || type === "vmess" || type === "trojan" || type === "ss" || type === "shadowsocks";
+    if (!isProxy) return null;
+
+    const protocol = type === "shadowsocks" ? "ss" : type;
+    const name = obj.name || `Node #${index + 1}`;
+    const server = obj.server || "127.0.0.1";
+    const port = obj.port || 443;
+
+    const uuid = obj.uuid;
+    const password = obj.password;
+    const method = obj.cipher;
+
+    let security = "none";
+    if (obj.tls) {
+      security = "tls";
+    }
+    const sni = obj.servername || "";
+    let publicKey = "";
+    let shortId = "";
+    if (obj["reality-opts"]) {
+      security = "reality";
+      publicKey = obj["reality-opts"].public_key || obj["reality-opts"]["public-key"] || "";
+      shortId = obj["reality-opts"].short_id || obj["reality-opts"]["short-id"] || "";
+    }
+
+    let network = obj.network || "tcp";
+    let path = "";
+    let host = "";
+
+    if (obj["ws-opts"]) {
+      network = "ws";
+      path = obj["ws-opts"].path || "/";
+      host = obj["ws-opts"].headers?.Host || obj["ws-opts"].headers?.host || "";
+    } else if (obj["grpc-opts"]) {
+      network = "grpc";
+      path = obj["grpc-opts"]["grpc-service-name"] || "";
+    }
+
+    return {
+      id: `clash_${protocol}_${index}`,
+      protocol,
+      name,
+      server,
+      port,
+      uuid,
+      password,
+      method,
+      security,
+      network,
+      sni,
+      path,
+      host,
+      publicKey,
+      shortId
+    };
+  } catch (err) {
+    console.warn("Failed to parse Clash proxy: ", obj, err);
+  }
+  return null;
+}
+
+/**
+ * Converts ParsedProxy schema back to sing-box outbound schema object
+ */
+export function convertToSingBoxOutbound(proxy: ParsedProxy): any {
+  const remark = proxy.name || "Config";
+  const baseOutbound: Record<string, any> = {
+    type: proxy.protocol === "ss" ? "shadowsocks" : proxy.protocol,
+    tag: remark,
+    server: proxy.server,
+    server_port: proxy.port,
+  };
+
+  if (proxy.protocol === "vless" || proxy.protocol === "vmess") {
+    baseOutbound.uuid = proxy.uuid || "";
+  }
+  if (proxy.protocol === "trojan") {
+    baseOutbound.password = proxy.password || "";
+  }
+  if (proxy.protocol === "ss") {
+    baseOutbound.password = proxy.password || "";
+    baseOutbound.method = proxy.method || "aes-256-gcm";
+  }
+
+  if (proxy.security === "tls" || proxy.security === "reality") {
+    baseOutbound.tls = {
+      enabled: true,
+      server_name: proxy.sni || ""
+    };
+    if (proxy.security === "reality") {
+      baseOutbound.tls.reality = {
+        enabled: true,
+        public_key: proxy.publicKey || "",
+        short_id: proxy.shortId || ""
+      };
+    }
+    if (proxy.fingerprint) {
+      baseOutbound.tls.utls = {
+        enabled: true,
+        fingerprint: proxy.fingerprint
+      };
+    }
+  }
+
+  if (proxy.network === "ws" || proxy.network === "grpc") {
+    baseOutbound.transport = {
+      type: proxy.network
+    };
+    if (proxy.network === "ws") {
+      baseOutbound.transport.path = proxy.path || "/";
+      if (proxy.host) {
+        baseOutbound.transport.headers = {
+          "Host": proxy.host
+        };
+      }
+    } else if (proxy.network === "grpc") {
+      baseOutbound.transport.service_name = proxy.path || "";
+    }
+  }
+
+  return baseOutbound;
+}
+
+/**
+ * Converts ParsedProxy schema back to Clash proxy schema object
+ */
+export function convertToClashProxy(proxy: ParsedProxy): any {
+  const remark = proxy.name || "Config";
+  const baseProxy: Record<string, any> = {
+    name: remark,
+    type: proxy.protocol,
+    server: proxy.server,
+    port: proxy.port,
+    udp: true
+  };
+
+  if (proxy.protocol === "vless" || proxy.protocol === "vmess") {
+    baseProxy.uuid = proxy.uuid || "";
+    baseProxy.cipher = "auto";
+  }
+  if (proxy.protocol === "trojan") {
+    baseProxy.password = proxy.password || "";
+  }
+  if (proxy.protocol === "ss") {
+    baseProxy.cipher = proxy.method || "aes-256-gcm";
+    baseProxy.password = proxy.password || "";
+  }
+
+  if (proxy.security === "tls" || proxy.security === "reality") {
+    baseProxy.tls = true;
+    if (proxy.sni) baseProxy.servername = proxy.sni;
+    if (proxy.security === "reality") {
+      baseProxy["reality-opts"] = {
+        "public-key": proxy.publicKey || "",
+        "short-id": proxy.shortId || ""
+      };
+    }
+    baseProxy["skip-cert-verify"] = false;
+  }
+
+  if (proxy.network === "ws" || proxy.network === "grpc") {
+    baseProxy.network = proxy.network;
+    if (proxy.network === "ws") {
+      baseProxy["ws-opts"] = {
+        path: proxy.path || "/",
+        headers: proxy.host ? { Host: proxy.host } : undefined
+      };
+    } else if (proxy.network === "grpc") {
+      baseProxy["grpc-opts"] = {
+        "grpc-service-name": proxy.path || ""
+      };
+    }
+  }
+
+  return baseProxy;
+}
+
+/**
+ * Custom light and bulletproof YAML array serializer
+ */
+export function convertArrayToYaml(arr: any[], indent: string = "  "): string {
+  let yaml = "proxies:\n";
+  for (const proxy of arr) {
+    yaml += `${indent}- name: "${proxy.name}"\n`;
+    yaml += `${indent}  type: ${proxy.type}\n`;
+    yaml += `${indent}  server: ${proxy.server}\n`;
+    yaml += `${indent}  port: ${proxy.port}\n`;
+    yaml += `${indent}  udp: ${proxy.udp !== false ? "true" : "false"}\n`;
+
+    if (proxy.uuid) yaml += `${indent}  uuid: ${proxy.uuid}\n`;
+    if (proxy.password) yaml += `${indent}  password: ${proxy.password}\n`;
+    if (proxy.cipher) yaml += `${indent}  cipher: ${proxy.cipher}\n`;
+    if (proxy.tls !== undefined) yaml += `${indent}  tls: ${proxy.tls ? "true" : "false"}\n`;
+    if (proxy.servername) yaml += `${indent}  servername: ${proxy.servername}\n`;
+    if (proxy.network) yaml += `${indent}  network: ${proxy.network}\n`;
+    if (proxy.skip_cert_verify !== undefined) yaml += `${indent}  skip-cert-verify: ${proxy.skip_cert_verify}\n`;
+
+    if (proxy["reality-opts"]) {
+      yaml += `${indent}  reality-opts:\n`;
+      yaml += `${indent}    public-key: ${proxy["reality-opts"]["public-key"]}\n`;
+      yaml += `${indent}    short-id: ${proxy["reality-opts"]["short-id"]}\n`;
+    }
+
+    if (proxy["ws-opts"]) {
+      yaml += `${indent}  ws-opts:\n`;
+      yaml += `${indent}    path: ${proxy["ws-opts"].path || "/"}\n`;
+      if (proxy["ws-opts"].headers?.Host) {
+        yaml += `${indent}    headers:\n`;
+        yaml += `${indent}      Host: ${proxy["ws-opts"].headers.Host}\n`;
+      }
+    } else if (proxy["grpc-opts"]) {
+      yaml += `${indent}  grpc-opts:\n`;
+      yaml += `${indent}    grpc-service-name: ${proxy["grpc-opts"]["grpc-service-name"]}\n`;
+    }
+  }
+  return yaml;
+}
+
+/**
+ * Normalizes input text consisting of JSON, standard V2Pay, sing-box or Clash configurations.
  */
 export function extractConfigsList(rawInput: string): (string | any)[] {
   if (!rawInput || !rawInput.trim()) return [];
@@ -29,17 +514,54 @@ export function extractConfigsList(rawInput: string): (string | any)[] {
   // Try parsing file as a JSON
   try {
     const data = JSON.parse(trimmed);
+
+    // Sing-box root object parser detection
+    if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.outbounds)) {
+      return data.outbounds.flatMap((x: any, idx: number) => {
+        const parsed = parseSingBoxOutbound(x, idx);
+        if (parsed) {
+          const sLink = convertToShareLink(parsed);
+          return sLink ? [sLink] : [];
+        }
+        return [];
+      });
+    }
+
+    // Clash root object parser detection
+    if (data && typeof data === "object" && !Array.isArray(data) && Array.isArray(data.proxies)) {
+      return data.proxies.flatMap((x: any, idx: number) => {
+        const parsed = parseClashProxy(x, idx);
+        if (parsed) {
+          const sLink = convertToShareLink(parsed);
+          return sLink ? [sLink] : [];
+        }
+        return [];
+      });
+    }
+
     if (Array.isArray(data)) {
-      return data.flatMap(item => {
+      return data.flatMap((item, idx) => {
         if (!item) return [];
         if (typeof item === "string") return [item];
         if (typeof item === "object") {
-          // Check if it's a share link nested inside a simple field
+          // Check if nested URL/link
           const possible = item.url || item.config || item.link || "";
           if (possible && typeof possible === "string" && possible.includes("://")) {
             return [possible];
           }
-          // Otherwise, if it has standard properties of a V2Ray JSON config, treat as config object
+          // Check if it's directly a sing-box config object
+          const parsedSb = parseSingBoxOutbound(item, idx);
+          if (parsedSb) {
+            const sLink = convertToShareLink(parsedSb);
+            if (sLink) return [sLink];
+          }
+          // Check if it's directly a Clash proxy object
+          const parsedClash = parseClashProxy(item, idx);
+          if (parsedClash) {
+            const sLink = convertToShareLink(parsedClash);
+            if (sLink) return [sLink];
+          }
+          // Standard V2Ray object fallback
           if (item.remarks || item.outbounds || item.inbounds) {
             return [item];
           }
@@ -47,21 +569,31 @@ export function extractConfigsList(rawInput: string): (string | any)[] {
         return [];
       });
     } else if (data && typeof data === "object") {
-      // Check if it's a single raw config object instead of an array
+      // Standard single V2Ray object check
       if (data.remarks || data.outbounds || data.inbounds) {
         return [data];
       }
-      // Look for standard arrays inside config wrapper
-      const possibleArrays = [data.configs, data.nodes, data.servers, data.proxies, data.links];
+      // Traversal for other lists
+      const possibleArrays = [data.configs, data.nodes, data.servers, data.proxies, data.links, data.outbounds];
       for (const arr of possibleArrays) {
         if (Array.isArray(arr)) {
-          return arr.flatMap(x => {
+          return arr.flatMap((x, idx) => {
             if (!x) return [];
             if (typeof x === "string") return [x];
             if (typeof x === "object") {
               const possible = x.url || x.config || x.link || "";
               if (possible && typeof possible === "string" && possible.includes("://")) {
                 return [possible];
+              }
+              const parsedSb = parseSingBoxOutbound(x, idx);
+              if (parsedSb) {
+                const sLink = convertToShareLink(parsedSb);
+                if (sLink) return [sLink];
+              }
+              const parsedClash = parseClashProxy(x, idx);
+              if (parsedClash) {
+                const sLink = convertToShareLink(parsedClash);
+                if (sLink) return [sLink];
               }
               if (x.remarks || x.outbounds || x.inbounds) {
                 return [x];
@@ -73,10 +605,10 @@ export function extractConfigsList(rawInput: string): (string | any)[] {
       }
     }
   } catch {
-    // Treat as raw text parsing
+    // Fail-through to raw text parsing
   }
 
-  // Fallback to splitting by newlines or spaces
+  // Split by newlines and grep share URIs or robust strings
   return trimmed
     .split(/\r?\n/)
     .map(line => line.trim())
@@ -91,7 +623,6 @@ export function convertJsonConfigToShareLink(obj: any): string {
     if (!obj || typeof obj !== "object") return "";
     const remark = obj.remarks || "Config";
     
-    // Locate the first non-direct protocol outbound
     const outbounds = obj.outbounds || [];
     const proxyOutbound = outbounds.find((o: any) => 
       o && (o.protocol === "vless" || o.protocol === "vmess" || o.protocol === "trojan" || o.protocol === "shadowsocks" || o.protocol === "ss")
@@ -229,35 +760,26 @@ export function updateConfigRemark(configUrl: string, remark: string): string {
     const trimmed = configUrl.trim();
     if (!trimmed) return "";
 
-    // 1. VMESS format: vmess://<base64_json_obj>
     if (trimmed.startsWith("vmess://")) {
       const b64Data = trimmed.substring(8);
       try {
         const decoded = Buffer.from(b64Data, "base64").toString("utf-8");
         const json = JSON.parse(decoded);
-        
-        // Update the remarks field (ps)
         json.ps = remark;
-        
         const updatedB64 = Buffer.from(JSON.stringify(json), "utf-8").toString("base64");
         return `vmess://${updatedB64}`;
       } catch (err) {
-        // Fallback for malformed base64
         return trimmed;
       }
     }
 
-    // 2. VLESS, Trojan, SS, etc. format: protocol://credentials@host:port?query#oldRemark
     if (
       trimmed.startsWith("vless://") ||
       trimmed.startsWith("trojan://") ||
       trimmed.startsWith("ss://")
     ) {
-      // Split by '#'
       const hashIndex = trimmed.indexOf("#");
       const basePart = hashIndex !== -1 ? trimmed.substring(0, hashIndex) : trimmed;
-      
-      // Return updated anchor hash segment
       return `${basePart}#${encodeURIComponent(remark)}`;
     }
 
@@ -277,7 +799,6 @@ export function buildDummyConfigLink(dummy: DummyConfig): string {
   const nameEncoded = encodeURIComponent(dummy.name);
   
   if (dummy.protocol === "info") {
-    // A clean info visual standard
     return `vless://${idStr}@${host}:443?encryption=none&security=tls&type=tcp#${nameEncoded}`;
   }
   
@@ -285,118 +806,12 @@ export function buildDummyConfigLink(dummy: DummyConfig): string {
 }
 
 /**
- * Handles processing of subscriptions in both share links formats and raw updated JSON arrays.
+ * Handles processing of subscriptions in multiple client formats.
  */
-export function generateProcessedSubscription(sub: Subscription, format: "links" | "json" = "links"): string {
-  const trimmed = (sub.jsonConfigs || "").trim();
-  const isJson = trimmed.startsWith("{") || trimmed.startsWith("[");
-
-  if (isJson) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      const template = (sub.remarksTemplate && sub.remarksTemplate.trim()) ? sub.remarksTemplate : "Server *";
-
-      // 1. Create dummy configs in JSON format
-      const dummyNodes = (sub.dummyConfigs || []).map(dummy => ({
-        remarks: dummy.name,
-        outbounds: [
-          {
-            protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
-            settings: {
-              vnext: [
-                {
-                  address: dummy.targetHost || "127.0.5.1",
-                  port: 443,
-                  users: [
-                    {
-                      id: "00000000-0000-0000-0000-000000000000",
-                      encryption: "none"
-                    }
-                  ]
-                }
-              ]
-            },
-            streamSettings: {
-              network: "tcp",
-              security: "none"
-            }
-          }
-        ],
-        tag: `dummy-${dummy.id}`
-      }));
-
-      // 2. If it is a full v2ray/xray single client configuration scheme structure with an outbounds list
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && Array.isArray(parsed.outbounds)) {
-        // Build outbounds representing the dummy config announcements
-        const dummyOutbounds = (sub.dummyConfigs || []).map(dummy => ({
-          protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
-          settings: {
-            vnext: [
-              {
-                address: dummy.targetHost || "127.0.5.1",
-                port: 443,
-                users: [
-                  {
-                    id: "00000000-0000-0000-0000-000000000000",
-                    encryption: "none"
-                  }
-                ]
-              }
-            ]
-          },
-          streamSettings: {
-            network: "tcp",
-            security: "none"
-          },
-          tag: dummy.name
-        }));
-
-        const clonedConfig = JSON.parse(JSON.stringify(parsed));
-        clonedConfig.outbounds = [...dummyOutbounds, ...(clonedConfig.outbounds || [])];
-        return JSON.stringify(clonedConfig, null, 2);
-      }
-
-      // 3. If it is a list of node configurations / array
-      let configsArray: any[] = [];
-      if (Array.isArray(parsed)) {
-        configsArray = parsed;
-      } else {
-        configsArray = [parsed];
-      }
-
-      // Apply naming template if remarks/ps exist or can be customized
-      const processedConfigs = configsArray.map((item, index) => {
-        if (item && typeof item === "object") {
-          const oneBasedIndex = index + 1;
-          let remarkName = template.includes("*")
-            ? template.replaceAll("*", String(oneBasedIndex))
-            : `${template} ${oneBasedIndex}`;
-
-          // Check if custom override exists for this specific index
-          if (sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "") {
-            remarkName = sub.nameOverrides[String(index)].trim();
-          }
-
-          const clonedObj = JSON.parse(JSON.stringify(item));
-          if (clonedObj.remarks !== undefined) {
-            clonedObj.remarks = remarkName;
-          } else if (clonedObj.ps !== undefined) {
-            clonedObj.ps = remarkName;
-          } else {
-            clonedObj.remarks = remarkName;
-          }
-          return clonedObj;
-        }
-        return item;
-      }).filter(Boolean);
-
-      return JSON.stringify([...dummyNodes, ...processedConfigs], null, 2);
-
-    } catch (err) {
-      console.warn("Failed to parse or process subscription JSON configs, falling back to line-by-line helper:", err);
-    }
-  }
-
+export function generateProcessedSubscription(
+  sub: Subscription,
+  format: "links" | "json" | "sing-box" | "clash" = "links"
+): string {
   const configsList = extractConfigsList(sub.jsonConfigs);
   const template = (sub.remarksTemplate && sub.remarksTemplate.trim()) ? sub.remarksTemplate : "Server *";
 
@@ -407,7 +822,6 @@ export function generateProcessedSubscription(sub: Subscription, format: "links"
       ? template.replaceAll("*", String(oneBasedIndex))
       : `${template} ${oneBasedIndex}`;
 
-    // Check if custom override exists for this specific index
     if (sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "") {
       remarkName = sub.nameOverrides[String(index)].trim();
     }
@@ -422,8 +836,128 @@ export function generateProcessedSubscription(sub: Subscription, format: "links"
     return "";
   }).filter(Boolean);
 
+  // Parse list into structured objects
+  const parsedProxies = processedConfigs.map((item, index) => {
+    if (typeof item === "string") {
+      return parseV2rayLink(item, index);
+    }
+    return null;
+  }).filter(Boolean) as ParsedProxy[];
+
+  if (format === "sing-box") {
+    const sbProxies = parsedProxies.map(convertToSingBoxOutbound);
+    const sbDummies = (sub.dummyConfigs || []).map((dummy, idx) => {
+      const dummyProxy: ParsedProxy = {
+        id: `dummy_${idx}`,
+        protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
+        name: dummy.name,
+        server: dummy.targetHost || "127.0.0.1",
+        port: 443,
+      };
+      return convertToSingBoxOutbound(dummyProxy);
+    });
+
+    const allOutbounds = [...sbDummies, ...sbProxies];
+    const singBoxConfig = {
+      log: {
+        level: "info",
+        timestamp: true
+      },
+      dns: {
+        servers: [
+          {
+            tag: "dns-remote",
+            address: "https://8.8.8.8/dns-query",
+            detour: "select"
+          },
+          {
+            tag: "dns-direct",
+            address: "1.1.1.1",
+            detour: "direct"
+          }
+        ],
+        rules: [
+          {
+            outbound: "any",
+            server: "dns-direct"
+          }
+        ]
+      },
+      inbounds: [
+        {
+          type: "tun",
+          tag: "tun-in",
+          interface_name: "tun0",
+          inet4_address: "172.19.0.1/30",
+          auto_route: true,
+          strict_route: true,
+          stack: "gvisor",
+          sniff: true
+        }
+      ],
+      outbounds: [
+        {
+          type: "selector",
+          tag: "select",
+          outbounds: ["direct", ...allOutbounds.map(o => o.tag)]
+        },
+        ...allOutbounds,
+        {
+          type: "direct",
+          tag: "direct"
+        },
+        {
+          type: "block",
+          tag: "block"
+        },
+        {
+          type: "dns",
+          tag: "dns-out"
+        }
+      ],
+      route: {
+        auto_detect_interface: true,
+        rules: [
+          {
+            protocol: "dns",
+            outbound: "dns-out"
+          },
+          {
+            port: 53,
+            outbound: "dns-out"
+          },
+          {
+            ip_is_private: true,
+            outbound: "direct"
+          }
+        ]
+      }
+    };
+    return JSON.stringify(singBoxConfig, null, 2);
+  }
+
+  if (format === "clash") {
+    const clashProxies = parsedProxies.map(convertToClashProxy);
+    const clashDummies = (sub.dummyConfigs || []).map((dummy, idx) => {
+      const dummyProxy: ParsedProxy = {
+        id: `dummy_${idx}`,
+        protocol: dummy.protocol === "info" ? "vless" : dummy.protocol,
+        name: dummy.name,
+        server: dummy.targetHost || "127.0.0.1",
+        port: 443,
+      };
+      return convertToClashProxy(dummyProxy);
+    });
+
+    const allClashProxies = [...clashDummies, ...clashProxies];
+    const clashYamlHeader = `port: 7890\nsocks-port: 7891\nallow-lan: true\nmode: Rule\nlog-level: info\nexternal-controller: '127.0.0.1:9090'\n\ndns:\n  enable: true\n  ipv6: false\n  listen: 0.0.0.0:53\n  enhanced-mode: fake-ip\n  nameserver:\n    - 114.114.114.114\n    - 8.8.8.8\n  fallback:\n    - https://8.8.8.8/dns-query\n\n`;
+    const proxiesYaml = convertArrayToYaml(allClashProxies, "  ");
+    const groupsYaml = `\nproxy-groups:\n  - name: PROXIES\n    type: select\n    proxies:\n      - DIRECT\n      - AUTO_SELECT\n      ${allClashProxies.map(p => `- "${p.name}"`).join("\n      ")}\n  - name: AUTO_SELECT\n    type: url-test\n    url: http://www.gstatic.com/generate_204\n    interval: 300\n    tolerance: 50\n    proxies:\n      ${allClashProxies.map(p => `- "${p.name}"`).join("\n      ")}\n\nrules:\n  - DOMAIN-SUFFIX,google.com,PROXIES\n  - DOMAIN-KEYWORD,google,PROXIES\n  - DOMAIN-SUFFIX,github.com,PROXIES\n  - GEOIP,CN,DIRECT\n  - MATCH,PROXIES\n`;
+
+    return `${clashYamlHeader}${proxiesYaml}${groupsYaml}`;
+  }
+
   if (format === "json") {
-    // Return custom updated JSON structures array
     const dummyNodes = (sub.dummyConfigs || []).map(dummy => ({
       remarks: dummy.name,
       outbounds: [
@@ -451,17 +985,15 @@ export function generateProcessedSubscription(sub: Subscription, format: "links"
     return JSON.stringify([...dummyNodes, ...processedConfigs], null, 2);
   }
 
-  // Links format (standard plain text line-by-line configuration)
+  // Fallback to "links" format
   const processedLines: string[] = [];
 
-  // 1. Add dummies
   if (sub.dummyConfigs && sub.dummyConfigs.length > 0) {
     sub.dummyConfigs.forEach(dummy => {
       processedLines.push(buildDummyConfigLink(dummy));
     });
   }
 
-  // 2. Add profiles
   processedConfigs.forEach(item => {
     if (typeof item === "string") {
       processedLines.push(item);

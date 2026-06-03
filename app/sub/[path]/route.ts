@@ -57,7 +57,7 @@ function parseUserAgent(ua: string): string {
     clientName = "v2rayN";
   } else if (uaLower.includes("quantumult x") || uaLower.includes("quantumult%20x")) {
     clientName = "Quantumult X";
-  } else if (uaLower.includes("clash")) {
+  } else if (uaLower.includes("clash") || uaLower.includes("stash") || uaLower.includes("meta")) {
     clientName = "Clash";
   } else if (uaLower.includes("sing-box") || uaLower.includes("sing_box")) {
     clientName = "sing-box";
@@ -69,8 +69,6 @@ function parseUserAgent(ua: string): string {
     clientName = "NekoBox";
   } else if (uaLower.includes("streisand")) {
     clientName = "Streisand";
-  } else if (uaLower.includes("stash")) {
-    clientName = "Stash";
   } else if (uaLower.includes("loon")) {
     clientName = "Loon";
   } else if (uaLower.includes("surge")) {
@@ -133,21 +131,42 @@ export async function GET(
     }
 
     const { searchParams } = new URL(req.url);
-    const format = searchParams.get("format") === "links" ? "links" : "json";
+    const rawFormat = searchParams.get("format");
     const isRaw = searchParams.get("raw") === "true" || searchParams.get("flag") === "raw";
 
-    // Trace diagnostic/metrics asynchronously
     const ip = extractIP(req);
     const ua = req.headers.get("user-agent") || "";
     const hwid = extractHWID(req, searchParams);
     const deviceType = parseUserAgent(ua);
+    const uaLower = ua.toLowerCase();
 
+    // Dynamically guess requested format from client's user-agent
+    let format: "links" | "json" | "sing-box" | "clash" = "json";
+    if (rawFormat === "links" || rawFormat === "v2ray" || rawFormat === "base64" || rawFormat === "b64" || rawFormat === "plain") {
+      format = "links";
+    } else if (rawFormat === "sing-box" || rawFormat === "sing_box" || rawFormat === "singbox") {
+      format = "sing-box";
+    } else if (rawFormat === "clash" || rawFormat === "meta" || rawFormat === "yaml") {
+      format = "clash";
+    } else if (rawFormat === "json") {
+      format = "json";
+    } else if (!rawFormat) {
+      // Auto guess if standard raw URL fetched directly by client apps
+      if (uaLower.includes("clash") || uaLower.includes("stash") || uaLower.includes("surfboard") || uaLower.includes("meta")) {
+        format = "clash";
+      } else if (uaLower.includes("sing-box") || uaLower.includes("sing_box")) {
+        format = "sing-box";
+      } else if (uaLower.includes("shadowrocket") || uaLower.includes("v2ray") || uaLower.includes("nekobox") || uaLower.includes("v2rayng")) {
+        format = "links";
+      }
+    }
+
+    // Save analytics
     logSubAccess(sub.path, ip, ua, hwid, deviceType).catch(ex => {
       console.error("Failed asynchronously to log subscription metrics: ", ex);
     });
 
     const acceptHeader = req.headers.get("accept") || "";
-    const uaLower = ua.toLowerCase();
 
     const isV2rayClient = 
       uaLower.includes("v2ray") ||
@@ -176,24 +195,44 @@ export async function GET(
     if (forceHtml || (isBrowserRequest && !searchParams.get("format") && !searchParams.get("raw"))) {
       const host = req.headers.get("host") || req.nextUrl.host;
       const proto = req.headers.get("x-forwarded-proto") || (req.nextUrl.protocol.replace(":", "") || "https");
-      const feedUrl = `${proto}://${host}/sub/${sub.path}`;
+      const baseSubUrl = `${proto}://${host}/sub/${sub.path}`;
 
       const totalDummies = (sub.dummyConfigs || []).length;
       const baseConfigs = extractConfigsList(sub.jsonConfigs || "");
       const baseConfigsCount = baseConfigs.length;
       const totalServers = totalDummies + baseConfigsCount;
 
+      // Generate payloads in all formats for rendering
       const linksOutputText = generateProcessedSubscription(sub, "links");
       const jsonOutputText = generateProcessedSubscription(sub, "json");
-      const subBase64Value = Buffer.from(linksOutputText, "utf-8").toString("base64");
-      const plainLinksBase64 = Buffer.from(linksOutputText, "utf-8").toString("base64");
-      const jsonBase64 = Buffer.from(jsonOutputText, "utf-8").toString("base64");
+      const singBoxOutputText = generateProcessedSubscription(sub, "sing-box");
+      const clashOutputText = generateProcessedSubscription(sub, "clash");
 
+      const b64ValueRaw = Buffer.from(linksOutputText, "utf-8").toString("base64");
+      
       const safeName = (sub.name || "Unnamed").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const safePath = (sub.path || "").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const safeIp = ip.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const safeDeviceType = deviceType.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const safeHwid = (hwid || "Not supplied (Browser Session)").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+      // Detect if we are loading on an isolates single-format subpage
+      let activeSingleFormat: string | null = null;
+      if (rawFormat) {
+        if (rawFormat === "sing-box" || rawFormat === "sing_box" || rawFormat === "singbox") {
+          activeSingleFormat = "sing-box";
+        } else if (rawFormat === "clash" || rawFormat === "meta" || rawFormat === "yaml") {
+          activeSingleFormat = "clash";
+        } else if (rawFormat === "links" || rawFormat === "plain" || rawFormat === "raw") {
+          activeSingleFormat = "links";
+        } else if (rawFormat === "json") {
+          activeSingleFormat = "json";
+        } else if (rawFormat === "v2ray" || rawFormat === "base64" || rawFormat === "b64") {
+          activeSingleFormat = "v2ray";
+        }
+      }
+
+      const activeUrl = activeSingleFormat ? `${baseSubUrl}/${activeSingleFormat}` : baseSubUrl;
 
       const html = `<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -234,8 +273,8 @@ export async function GET(
     
     <!-- Limoo elegant logo and header -->
     <div class="text-center space-y-3 p-2">
-      <div class="inline-flex items-center justify-center p-3.5 bg-gradient-to-br from-teal-500/20 to-sky-500/20 border border-teal-500/30 rounded-3xl shadow-xl shadow-teal-500/5 select-none animate-pulse">
-        <svg class="h-10 w-10 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <div class="inline-flex items-center justify-center p-3.5 bg-gradient-to-br from-teal-500/10 to-sky-500/10 border border-teal-500/20 rounded-3xl shadow-xl shadow-teal-500/5 select-none animate-pulse">
+        <svg class="h-9 w-9 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 5a7 7 0 100 14 7 7 0 000-14zM12 8a4 4 0 110 8 4 4 0 010-8z"></path>
         </svg>
       </div>
@@ -261,15 +300,15 @@ export async function GET(
           <h2 class="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">Subscription Parameters</h2>
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400">Name:</span>
+              <span class="text-sm text-slate-400 font-medium">Name:</span>
               <span class="text-sm font-semibold text-white">${safeName}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400">Path Segment:</span>
-              <span class="text-xs font-mono bg-slate-950 px-2 py-1 rounded text-teal-400 border border-slate-800">${safePath}</span>
+              <span class="text-sm text-slate-400 font-medium">Path:</span>
+              <span class="text-xs font-mono bg-slate-950 px-2 py-1 rounded text-teal-400 border border-slate-800">/${safePath}${activeSingleFormat ? "/" + activeSingleFormat : ""}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400">Node Population:</span>
+              <span class="text-sm text-slate-400 font-medium">Node Population:</span>
               <span class="text-sm font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-mono text-xs">
                 ${totalServers} servers (${totalDummies} dummies)
               </span>
@@ -281,15 +320,15 @@ export async function GET(
           <h2 class="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">Your Device Connection Context</h2>
           <div class="space-y-2">
             <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400">Your IP Address:</span>
+              <span class="text-sm text-slate-400 font-medium">Your IP Address:</span>
               <span class="text-sm font-semibold text-white font-mono">${safeIp}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400">User-Agent:</span>
+              <span class="text-sm text-slate-400 font-medium">User-Agent:</span>
               <span class="text-xs text-slate-300 max-w-[200px] truncate" title="${safeDeviceType}">${safeDeviceType}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400">Hardware ID (HWID):</span>
+              <span class="text-sm text-slate-400 font-medium">Hardware ID (HWID):</span>
               <span class="text-xs text-slate-400 font-mono italic truncate max-w-[150px]">${safeHwid}</span>
             </div>
           </div>
@@ -297,16 +336,20 @@ export async function GET(
       </div>
 
       <!-- Quick client integration url segment -->
-      <div class="space-y-3 bg-slate-950/40 border border-slate-800/80 p-5 rounded-2xl">
+      <div id="sub_url_block" class="space-y-3 bg-slate-950/40 border border-slate-800/80 p-5 rounded-2xl">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 select-none">
           <div>
-            <h3 class="text-sm font-bold text-slate-200">Auto-Import Link</h3>
-            <p class="text-xs text-slate-500">Provide this direct link to client apps like Shadowrocket, sing-box or v2rayNG to auto-sync.</p>
+            <h3 class="text-sm font-bold text-slate-200">
+              ${activeSingleFormat ? activeSingleFormat.toUpperCase() + " Direct sub URL" : "Auto-Sync Subscription URL"}
+            </h3>
+            <p class="text-xs text-slate-500">
+              Provide this direct link to client apps sync engines to fetch verified node profiles dynamically.
+            </p>
           </div>
           <button 
             type="button" 
             id="sub-url-copy-btn"
-            onclick="navigator.clipboard.writeText('${feedUrl}').then(() => { showToast('toast-notify'); });"
+            onclick="navigator.clipboard.writeText('${activeUrl}').then(() => { showToast('toast-notify'); });"
             class="flex items-center justify-center bg-teal-500 hover:bg-teal-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap self-start md:self-auto shadow-lg shadow-teal-500/10 cursor-pointer"
           >
             <svg class="h-3.5 w-3.5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
@@ -314,13 +357,25 @@ export async function GET(
           </button>
         </div>
         <div class="bg-slate-950 border border-slate-900 rounded-xl p-3 select-all overflow-x-auto text-xs text-slate-300 font-mono whitespace-nowrap">
-          ${feedUrl}
+          ${activeUrl}
         </div>
       </div>
 
       <!-- Tabs and Code viewers section -->
-      <div class="space-y-4 pt-2">
-        <div class="flex flex-wrap border-b border-slate-800/80 gap-1 overflow-x-auto select-none">
+      <div id="sub_tabs_block" class="space-y-4 pt-2">
+        ${activeSingleFormat ? `
+        <!-- Single format subpage banner -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 select-none">
+          <span class="text-xs text-teal-400 font-mono font-bold uppercase tracking-wider bg-teal-500/10 border border-teal-500/20 px-2.5 py-1 rounded-md">
+            ${activeSingleFormat === "sing-box" ? "Sing-Box Client JSON Config" : 
+              activeSingleFormat === "clash" ? "Clash Client Premium YAML" :
+              activeSingleFormat === "v2ray" ? "V2Ray b64 links profile" :
+              activeSingleFormat === "links" ? "Plain Share links" : "JSON nodes list"}
+          </span>
+          <a href="${baseSubUrl}" class="text-xs text-slate-400 hover:text-sky-400 underline font-medium transition">&larr; View all formats</a>
+        </div>
+        ` : `
+        <div class="flex flex-wrap border-b border-slate-800/80 gap-1 overflow-x-auto select-none scroller-hidden">
           <button 
             type="button" 
             id="tab-btn-b64"
@@ -339,6 +394,22 @@ export async function GET(
           </button>
           <button 
             type="button" 
+            id="tab-btn-singbox"
+            onclick="switchTab('tab-btn-singbox', 'tab-content-singbox')"
+            class="tab-btn px-4 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition whitespace-nowrap cursor-pointer"
+          >
+            Sing-Box Config (JSON)
+          </button>
+          <button 
+            type="button" 
+            id="tab-btn-clash"
+            onclick="switchTab('tab-btn-clash', 'tab-content-clash')"
+            class="tab-btn px-4 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition whitespace-nowrap cursor-pointer"
+          >
+            Clash Config (YAML)
+          </button>
+          <button 
+            type="button" 
             id="tab-btn-json"
             onclick="switchTab('tab-btn-json', 'tab-content-json')"
             class="tab-btn px-4 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition whitespace-nowrap cursor-pointer"
@@ -346,14 +417,15 @@ export async function GET(
             Nodes JSON Array
           </button>
         </div>
+        `}
 
         <!-- Tab contents wrapper -->
         <div class="relative bg-slate-950 rounded-2xl border border-slate-850 overflow-hidden">
           
           <!-- TAB 1: BASE64 FEED CONTENT -->
-          <div id="tab-content-b64" class="tab-content block">
+          <div id="tab-content-b64" class="tab-content ${(!activeSingleFormat || activeSingleFormat === "v2ray") ? "block" : "hidden"}">
             <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
-              <span class="text-xs text-slate-400 font-mono font-medium">B64 Output Payload (${subBase64Value.length} chars)</span>
+              <span class="text-xs text-slate-400 font-mono font-medium">B64 V2Ray payload (${b64ValueRaw.length} chars)</span>
               <button 
                 type="button" 
                 id="copy-btn-b64"
@@ -365,8 +437,7 @@ export async function GET(
               </button>
             </div>
             <div id="b64-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
-              <pre id="b64-body" data-full-text="${subBase64Value}" data-is-b64-encoded="false" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed"></pre>
-              <!-- Faded overlay and reveal button -->
+              <pre id="b64-body" data-full-text="${b64ValueRaw}" data-is-b64-encoded="false" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed font-semibold"></pre>
               <div id="b64-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
                 <button 
                   type="button" 
@@ -382,7 +453,7 @@ export async function GET(
           </div>
 
           <!-- TAB 2: PLAIN CONFIGS CONTENT -->
-          <div id="tab-content-plain" class="tab-content hidden">
+          <div id="tab-content-plain" class="tab-content ${(!activeSingleFormat && false || activeSingleFormat === "links") ? "block" : "hidden"}">
             <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
               <span class="text-xs text-slate-400 font-mono font-medium">Plain Links Payload (${linksOutputText.length} chars)</span>
               <button 
@@ -396,8 +467,7 @@ export async function GET(
               </button>
             </div>
             <div id="plain-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
-              <pre id="plain-body" data-full-text="${plainLinksBase64}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed"></pre>
-              <!-- Faded overlay and reveal button -->
+              <pre id="plain-body" data-full-text="${Buffer.from(linksOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed"></pre>
               <div id="plain-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
                 <button 
                   type="button" 
@@ -412,8 +482,68 @@ export async function GET(
             </div>
           </div>
 
-          <!-- TAB 3: JSON NODES CONTENT -->
-          <div id="tab-content-json" class="tab-content hidden">
+          <!-- TAB 3: SING-BOX CONFIG FILE -->
+          <div id="tab-content-singbox" class="tab-content ${(!activeSingleFormat && false || activeSingleFormat === "sing-box") ? "block" : "hidden"}">
+            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-400 font-mono font-medium">Sing-Box Client Profile JSON (${singBoxOutputText.length} chars)</span>
+              <button 
+                type="button" 
+                id="copy-btn-singbox"
+                onclick="copyToClipboard('singbox-body', 'copy-btn-singbox', 'toast-notify')"
+                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+              >
+                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Config
+              </button>
+            </div>
+            <div id="singbox-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
+              <pre id="singbox-body" data-full-text="${Buffer.from(singBoxOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed font-sans"></pre>
+              <div id="singbox-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+                <button 
+                  type="button" 
+                  id="singbox-body-expand-btn"
+                  onclick="toggleTruncation('singbox-body-expand-btn', 'singbox-body', 'singbox-wrapper', 'singbox-body-overlay')"
+                  class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center transition cursor-pointer shadow-lg hidden"
+                >
+                  <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>
+                  Show Full Config
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: CLASH CONFIG FILE -->
+          <div id="tab-content-clash" class="tab-content ${(!activeSingleFormat && false || activeSingleFormat === "clash") ? "block" : "hidden"}">
+            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-400 font-mono font-medium">Clash Client Profile YAML (${clashOutputText.length} chars)</span>
+              <button 
+                type="button" 
+                id="copy-btn-clash"
+                onclick="copyToClipboard('clash-body', 'copy-btn-clash', 'toast-notify')"
+                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+              >
+                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Config
+              </button>
+            </div>
+            <div id="clash-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
+              <pre id="clash-body" data-full-text="${Buffer.from(clashOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed font-sans"></pre>
+              <div id="clash-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+                <button 
+                  type="button" 
+                  id="clash-body-expand-btn"
+                  onclick="toggleTruncation('clash-body-expand-btn', 'clash-body', 'clash-wrapper', 'clash-body-overlay')"
+                  class="bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold px-4 py-2 rounded-xl flex items-center justify-center transition cursor-pointer shadow-lg hidden"
+                >
+                  <svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>
+                  Show Full Config
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 5: JSON NODES CONTENT -->
+          <div id="tab-content-json" class="tab-content ${(!activeSingleFormat && false || activeSingleFormat === "json") ? "block" : "hidden"}">
             <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
               <span class="text-xs text-slate-400 font-mono font-medium">Nodes JSON Array Payload (${jsonOutputText.length} chars)</span>
               <button 
@@ -427,8 +557,7 @@ export async function GET(
               </button>
             </div>
             <div id="json-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
-              <pre id="json-body" data-full-text="${jsonBase64}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed"></pre>
-              <!-- Faded overlay and reveal button -->
+              <pre id="json-body" data-full-text="${Buffer.from(jsonOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed font-sans"></pre>
               <div id="json-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
                 <button 
                   type="button" 
@@ -475,14 +604,12 @@ export async function GET(
       if (!el) return;
       
       const raw = el.getAttribute("data-full-text") || "";
-      const isEncoded = el.getAttribute("data-is-b64-encoded") === "true";
+      const isEncoded = el.getAttribute("data-is-b64-encoded") === "true" || el.id !== "b64-body";
       const fullText = isEncoded ? decodeUtf8B64(raw) : raw;
 
       navigator.clipboard.writeText(fullText).then(() => {
-        // Show Toast Notify
         showToast(toastId);
         
-        // Update Button temporarily
         const btn = document.getElementById(buttonId);
         if (btn) {
           const origHtml = btn.innerHTML;
@@ -537,7 +664,7 @@ export async function GET(
       if (!body || !wrapper || !overlay || !btn) return;
       
       const raw = body.getAttribute("data-full-text") || "";
-      const isEncoded = body.getAttribute("data-is-b64-encoded") === "true";
+      const isEncoded = body.getAttribute("data-is-b64-encoded") === "true" || bodyId !== "b64-body";
       const fullText = isEncoded ? decodeUtf8B64(raw) : raw;
       
       const isTruncated = body.getAttribute("data-truncated") === "true";
@@ -561,13 +688,13 @@ export async function GET(
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-      const elementIds = ["b64-body", "plain-body", "json-body"];
+      const elementIds = ["b64-body", "plain-body", "singbox-body", "clash-body", "json-body"];
       elementIds.forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
         
         const raw = el.getAttribute("data-full-text") || "";
-        const isEncoded = el.getAttribute("data-is-b64-encoded") === "true";
+        const isEncoded = el.getAttribute("data-is-b64-encoded") === "true" || id !== "b64-body";
         const full = isEncoded ? decodeUtf8B64(raw) : raw;
         
         const limitCh = 650;
@@ -603,6 +730,26 @@ export async function GET(
 
     const resultText = generateProcessedSubscription(sub, format);
 
+    if (format === "sing-box") {
+      return new NextResponse(resultText, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      });
+    }
+
+    if (format === "clash") {
+      return new NextResponse(resultText, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/yaml; charset=utf-8",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+        },
+      });
+    }
+
     if (format === "json") {
       return new NextResponse(resultText, {
         status: 200,
@@ -613,13 +760,14 @@ export async function GET(
       });
     }
 
+    // Default raw links or base64 links handling
     if (isRaw) {
       return new NextResponse(resultText, {
         status: 200,
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "Cache-Control": "no-store, no-cache, must-revalidate",
-          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0", // Dummy metrics hint
+          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0", 
         },
       });
     }

@@ -983,8 +983,84 @@ export default function Dashboard() {
                     </div>
                   )}
 
+                  {editPath && (
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
+                          Sing-Box JSON Configuration Profile (Direct Client Compatible)
+                        </span>
+                        <span className="text-[10px] text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded px-2 py-0.5 font-bold font-mono">
+                          Sing-Box
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
+                          {`${appOrigin}/sub/${editPath}/sing-box`}
+                        </div>
+                        
+                        <button
+                          id="copy_sub_singbox_btn"
+                          onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}/sing-box`, "singbox")}
+                          className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                          title="Copy Sing-Box subscription address"
+                        >
+                          {copiedLink === "singbox" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                        </button>
+
+                        <a
+                          href={`/sub/${editPath}/sing-box`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
+                          title="View output Singbox JSON"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {editPath && (
+                    <div className="pt-2 border-t border-slate-800/80">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
+                          Clash Premium YAML Configuration Profile (Clash/Meta Compatible)
+                        </span>
+                        <span className="text-[10px] text-sky-450 bg-sky-500/10 border border-sky-500/20 rounded px-2 py-0.5 font-bold font-mono">
+                          Clash Premium
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
+                          {`${appOrigin}/sub/${editPath}/clash`}
+                        </div>
+                        
+                        <button
+                          id="copy_sub_clash_btn"
+                          onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}/clash`, "clash")}
+                          className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                          title="Copy Clash subscription address"
+                        >
+                          {copiedLink === "clash" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                        </button>
+
+                        <a
+                          href={`/sub/${editPath}/clash`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
+                          title="View output Clash YAML"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
                   <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-                    Clients such as <strong>V2RayN</strong>, <strong>Shadowrocket</strong>, <strong>v2rayNG</strong> or <strong>v2fly</strong> query these URLs dynamically to obtain up-to-date active nodes! Standard clients expect <strong>Links Feed</strong>, while Xray custom config readers consume the <strong>JSON Feed</strong> directly.
+                    Clients such as <strong>Sing-Box</strong>, <strong>Clash Meta</strong>, <strong>V2RayN</strong>, <strong>Shadowrocket</strong>, or <strong>v2rayNG</strong> query these URLs dynamically to obtain up-to-date active nodes! Standard V2Ray client apps expect <strong>Links Feed</strong>, while modern proxies directly utilize native <strong>Sing-Box</strong> or <strong>Clash</strong> configs.
                   </p>
                 </div>
               </div>
