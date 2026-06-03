@@ -48,7 +48,22 @@ export async function POST(req: NextRequest) {
     let updatedList: Subscription[];
 
     if (subData.id) {
-      // Modify
+      // Modify - Optimize: if absolutely no fields changed, we don't need to write to DB
+      const existingSub = currentList.find(sub => sub.id === subData.id);
+      if (existingSub) {
+        const nameEqual = subData.name === existingSub.name;
+        const pathEqual = subData.path === existingSub.path;
+        const remarksTemplateEqual = (subData.remarksTemplate === undefined ? "Server *" : subData.remarksTemplate) === (existingSub.remarksTemplate !== undefined ? existingSub.remarksTemplate : "Server *");
+        const jsonConfigsEqual = (subData.jsonConfigs || "") === (existingSub.jsonConfigs || "");
+        const dummyConfigsEqual = JSON.stringify(subData.dummyConfigs || []) === JSON.stringify(existingSub.dummyConfigs || []);
+        const nameOverridesEqual = JSON.stringify(subData.nameOverrides || {}) === JSON.stringify(existingSub.nameOverrides || {});
+
+        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual) {
+          // No changes detected! Avoid database update transaction completely.
+          return NextResponse.json({ success: true, subscriptions: currentList, noChanges: true });
+        }
+      }
+
       updatedList = currentList.map(existing => {
         if (existing.id === subData.id) {
           return {

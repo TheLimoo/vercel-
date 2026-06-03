@@ -14,6 +14,8 @@ export interface Subscription {
   jsonConfigs: string; // holds raw input config data
   dummyConfigs: DummyConfig[];
   nameOverrides?: Record<string, string>; // custom index-based naming overrides
+  enabledFormats?: string[]; // list of active format keys
+  customFormatPayloads?: Record<string, string>; // pasted code index overrides
   createdAt: string;
   updatedAt: string;
 }
@@ -810,8 +812,24 @@ export function buildDummyConfigLink(dummy: DummyConfig): string {
  */
 export function generateProcessedSubscription(
   sub: Subscription,
-  format: "links" | "json" | "sing-box" | "clash" = "links"
+  format: "links" | "plain" | "json" | "sing-box" | "clash" = "links"
 ): string {
+  // If custom format payload exists for this specific format and is not empty, use it directly!
+  if (sub.customFormatPayloads && sub.customFormatPayloads[format] !== undefined && sub.customFormatPayloads[format].trim() !== "") {
+    return sub.customFormatPayloads[format];
+  }
+
+  // Handle plain format special override fallback path
+  if (format === "plain") {
+    if (sub.customFormatPayloads && sub.customFormatPayloads["plain"] !== undefined && sub.customFormatPayloads["plain"].trim() !== "") {
+      return sub.customFormatPayloads["plain"];
+    }
+    if (sub.customFormatPayloads && sub.customFormatPayloads["links"] !== undefined && sub.customFormatPayloads["links"].trim() !== "") {
+      return sub.customFormatPayloads["links"];
+    }
+  }
+
+  const activeFormat = format === "plain" ? "links" : format;
   const configsList = extractConfigsList(sub.jsonConfigs);
   const template = (sub.remarksTemplate && sub.remarksTemplate.trim()) ? sub.remarksTemplate : "Server *";
 
@@ -844,7 +862,7 @@ export function generateProcessedSubscription(
     return null;
   }).filter(Boolean) as ParsedProxy[];
 
-  if (format === "sing-box") {
+  if (activeFormat === "sing-box") {
     const sbProxies = parsedProxies.map(convertToSingBoxOutbound);
     const sbDummies = (sub.dummyConfigs || []).map((dummy, idx) => {
       const dummyProxy: ParsedProxy = {
@@ -936,7 +954,7 @@ export function generateProcessedSubscription(
     return JSON.stringify(singBoxConfig, null, 2);
   }
 
-  if (format === "clash") {
+  if (activeFormat === "clash") {
     const clashProxies = parsedProxies.map(convertToClashProxy);
     const clashDummies = (sub.dummyConfigs || []).map((dummy, idx) => {
       const dummyProxy: ParsedProxy = {
@@ -957,7 +975,7 @@ export function generateProcessedSubscription(
     return `${clashYamlHeader}${proxiesYaml}${groupsYaml}`;
   }
 
-  if (format === "json") {
+  if (activeFormat === "json") {
     const dummyNodes = (sub.dummyConfigs || []).map(dummy => ({
       remarks: dummy.name,
       outbounds: [

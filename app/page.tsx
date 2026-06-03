@@ -46,6 +46,8 @@ function buildInitialSubscriptionPayload(subscriptionsCount: number): { payload:
       path: defaultPath,
       remarksTemplate: "VIP-*",
       jsonConfigs: "",
+      enabledFormats: ["links", "plain", "sing-box", "clash", "json"],
+      customFormatPayloads: {},
       dummyConfigs: [
         {
           id: `dummy_initial_${indexSuffix}_1`,
@@ -63,6 +65,14 @@ function buildInitialSubscriptionPayload(subscriptionsCount: number): { payload:
     }
   };
 }
+
+const availableFormatsList = [
+  { key: "links", label: "Base64 Feed (Standard)", desc: "Serves base64 encoded list of nodes.", placeholder: "Pasted custom links text or leaves empty to auto-convert..." },
+  { key: "plain", label: "Plain Share URLs", desc: "Serves raw non-encoded share strings.", placeholder: "Pasted custom plain links list here..." },
+  { key: "sing-box", label: "Sing-Box Config (JSON)", desc: "Serves Sing-Box profile format.", placeholder: "{\n  \"route\": {...}\n}" },
+  { key: "clash", label: "Clash Config (YAML)", desc: "Serves Clash yaml profile format.", placeholder: "proxies:\n  - name:..." },
+  { key: "json", label: "Nodes JSON Array", desc: "Serves parsed list of custom nodes as JSON.", placeholder: "[\n  {...}\n]" }
+];
 
 function getBatchRenamedName(templateStr: string, index: number): string {
   const template = templateStr && templateStr.trim() ? templateStr : "Server *";
@@ -123,6 +133,8 @@ export default function Dashboard() {
   const [editJsonConfigs, setEditJsonConfigs] = useState("");
   const [editDummyConfigs, setEditDummyConfigs] = useState<DummyConfig[]>([]);
   const [editNameOverrides, setEditNameOverrides] = useState<Record<string, string>>({});
+  const [editEnabledFormats, setEditEnabledFormats] = useState<string[]>(["links", "plain", "sing-box", "clash", "json"]);
+  const [editCustomFormatPayloads, setEditCustomFormatPayloads] = useState<Record<string, string>>({});
 
   // Dummy config builder state
   const [newDummyName, setNewDummyName] = useState("");
@@ -194,6 +206,8 @@ export default function Dashboard() {
     setEditJsonConfigs(sub.jsonConfigs || "");
     setEditDummyConfigs(sub.dummyConfigs || []);
     setEditNameOverrides(sub.nameOverrides || {});
+    setEditEnabledFormats(sub.enabledFormats !== undefined ? sub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]);
+    setEditCustomFormatPayloads(sub.customFormatPayloads || {});
     
     if (activeTab === "metrics") {
       fetchAccessMetrics(sub.path);
@@ -537,6 +551,24 @@ export default function Dashboard() {
       return;
     }
 
+    // Client-side change detection optimization
+    const activeSub = subscriptions.find((s) => s.id === selectedSubId);
+    if (activeSub) {
+      const nameEqual = editName === activeSub.name;
+      const pathEqual = editPath === activeSub.path;
+      const remarksTemplateEqual = editRemarksTemplate === (activeSub.remarksTemplate !== undefined ? activeSub.remarksTemplate : "Server *");
+      const jsonConfigsEqual = editJsonConfigs === (activeSub.jsonConfigs || "");
+      const dummyConfigsEqual = JSON.stringify(editDummyConfigs || []) === JSON.stringify(activeSub.dummyConfigs || []);
+      const nameOverridesEqual = JSON.stringify(editNameOverrides || {}) === JSON.stringify(activeSub.nameOverrides || {});
+      const enabledFormatsEqual = JSON.stringify(editEnabledFormats) === JSON.stringify(activeSub.enabledFormats !== undefined ? activeSub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]);
+      const customFormatPayloadsEqual = JSON.stringify(editCustomFormatPayloads) === JSON.stringify(activeSub.customFormatPayloads || {});
+
+      if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual) {
+        showToast("No changes detected. Configuration is up to date!", "info");
+        return;
+      }
+    }
+
     setIsSaving(true);
     const payload: Partial<Subscription> = {
       id: selectedSubId,
@@ -546,6 +578,8 @@ export default function Dashboard() {
       jsonConfigs: editJsonConfigs,
       dummyConfigs: editDummyConfigs,
       nameOverrides: editNameOverrides,
+      enabledFormats: editEnabledFormats,
+      customFormatPayloads: editCustomFormatPayloads,
     };
 
     try {
@@ -1442,12 +1476,103 @@ export default function Dashboard() {
               </div>
 
 
-              {/* SECTION: 4. SHADOW / DUMMY ANNOUNCEMENTS DATA */}
+              {/* SECTION: 4. FORMAT AVAILABILITY & PASTE CUSTOM PAYLOAD */}
+              <div id="section_format_payloads" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Layers className="h-5 w-5 text-sky-400 shrink-0" />
+                  <h3 className="text-sm font-semibold text-white tracking-wide">
+                    4. Format Availability & Paste Custom Code
+                  </h3>
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-xs text-slate-400 leading-relaxed font-sans">
+                    Enable or disable specific formats for this subscription. Unchecked formats will be inaccessible (403 Forbidden) and removed from browser visualization tabs.
+                    Optionally, you can paste or upload custom JSON code (or yaml/text config) for any of these. If a custom override payload is pasted, the system will serve that custom payload directly instead of auto-converting raw config.
+                  </p>
+
+                  <div className="grid grid-cols-1 gap-4">
+                    {availableFormatsList.map((fmt) => {
+                      const isChecked = editEnabledFormats.includes(fmt.key);
+                      const customPayload = editCustomFormatPayloads[fmt.key] || "";
+                      const hasCustomPayload = customPayload.length > 0;
+                      
+                      return (
+                        <div key={fmt.key} className="p-4 bg-slate-900/50 border border-slate-850 rounded-xl space-y-3 transition-all hover:border-slate-800">
+                          <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-3 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setEditEnabledFormats([...editEnabledFormats, fmt.key]);
+                                  } else {
+                                    setEditEnabledFormats(editEnabledFormats.filter(item => item !== fmt.key));
+                                  }
+                                }}
+                                className="w-4 h-4 text-sky-500 bg-slate-950 border-slate-800 rounded focus:ring-sky-500 focus:ring-offset-bg underline shrink-0"
+                              />
+                              <div>
+                                <span className={`text-xs font-bold leading-none ${isChecked ? 'text-teal-400' : 'text-slate-405'}`}>
+                                  {fmt.label}
+                                </span>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">{fmt.desc}</p>
+                              </div>
+                            </label>
+                            
+                            {isChecked && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = { ...editCustomFormatPayloads };
+                                  if (hasCustomPayload) {
+                                    delete updated[fmt.key];
+                                  } else {
+                                    // Initialize with standard empty spaces or clear text
+                                    updated[fmt.key] = " ";
+                                  }
+                                  setEditCustomFormatPayloads(updated);
+                                }}
+                                className="text-[10px] font-mono px-2 py-1 rounded bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+                              >
+                                {hasCustomPayload ? "❌ Remove Custom Override" : "✍️ Paste Custom Code Override"}
+                              </button>
+                            )}
+                          </div>
+
+                          {isChecked && hasCustomPayload && (
+                            <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                              <span className="text-[10px] text-amber-400/80 font-mono block">
+                                Paste custom payload (JSON/YAML/Raw Text) for {fmt.key}:
+                              </span>
+                              <textarea
+                                value={customPayload === " " ? "" : customPayload}
+                                onChange={(e) => {
+                                  const updated = { ...editCustomFormatPayloads };
+                                  updated[fmt.key] = e.target.value;
+                                  setEditCustomFormatPayloads(updated);
+                                }}
+                                placeholder={fmt.placeholder}
+                                rows={6}
+                                className="w-full block p-3 bg-slate-950 border border-slate-800 rounded-lg text-amber-400 placeholder-slate-800 text-xs font-mono focus:outline-none focus:border-sky-550 leading-relaxed"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+
+              {/* SECTION: 5. SHADOW / DUMMY ANNOUNCEMENTS DATA */}
               <div id="section_dummy_configs" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
                   <Info className="h-5 w-5 text-sky-400 shrink-0" />
                   <h3 className="text-sm font-semibold text-white tracking-wide">
-                    4. Dummy Configuration Banners & Announcements
+                    5. Dummy Configuration Banners & Announcements
                   </h3>
                 </div>
 

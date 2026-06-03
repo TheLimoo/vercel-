@@ -140,10 +140,33 @@ export async function GET(
     const deviceType = parseUserAgent(ua);
     const uaLower = ua.toLowerCase();
 
+    // Retrieve active enabled formats list for this subscription (default to all if not set)
+    const enabledFormats: string[] = sub.enabledFormats !== undefined ? sub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"];
+
+    // Guard explicitly requested formats: reject if they are disabled
+    if (rawFormat) {
+      let formatKeyToVerify = rawFormat;
+      if (rawFormat === "v2ray" || rawFormat === "base64" || rawFormat === "b64") {
+        formatKeyToVerify = "links";
+      } else if (rawFormat === "raw") {
+        formatKeyToVerify = "plain";
+      } else if (rawFormat === "sing_box" || rawFormat === "singbox") {
+        formatKeyToVerify = "sing-box";
+      } else if (rawFormat === "meta" || rawFormat === "yaml") {
+        formatKeyToVerify = "clash";
+      }
+
+      if (!enabledFormats.includes(formatKeyToVerify)) {
+        return new NextResponse("Requested subscription format is currently not enabled by the administrator for this link.", { status: 403 });
+      }
+    }
+
     // Dynamically guess requested format from client's user-agent
-    let format: "links" | "json" | "sing-box" | "clash" = "json";
-    if (rawFormat === "links" || rawFormat === "v2ray" || rawFormat === "base64" || rawFormat === "b64" || rawFormat === "plain") {
+    let format: "links" | "plain" | "json" | "sing-box" | "clash" = "json";
+    if (rawFormat === "links" || rawFormat === "v2ray" || rawFormat === "base64" || rawFormat === "b64") {
       format = "links";
+    } else if (rawFormat === "plain" || rawFormat === "raw") {
+      format = "plain";
     } else if (rawFormat === "sing-box" || rawFormat === "sing_box" || rawFormat === "singbox") {
       format = "sing-box";
     } else if (rawFormat === "clash" || rawFormat === "meta" || rawFormat === "yaml") {
@@ -158,6 +181,14 @@ export async function GET(
         format = "sing-box";
       } else if (uaLower.includes("shadowrocket") || uaLower.includes("v2ray") || uaLower.includes("nekobox") || uaLower.includes("v2rayng")) {
         format = "links";
+      }
+    }
+
+    // Fallback guess to the first enabled format if the guessed format is disabled
+    if (!rawFormat && !enabledFormats.includes(format)) {
+      const firstEnabled = ["links", "plain", "sing-box", "clash", "json"].find(f => enabledFormats.includes(f));
+      if (firstEnabled) {
+        format = firstEnabled as any;
       }
     }
 
@@ -208,6 +239,19 @@ export async function GET(
       const singBoxOutputText = generateProcessedSubscription(sub, "sing-box");
       const clashOutputText = generateProcessedSubscription(sub, "clash");
 
+      // Generate tabs dynamically based on which are enabled
+      const formatTabConfig = [
+        { key: "links", id: "b64", label: "Base64 Feed (Standard)", contentId: "tab-content-b64" },
+        { key: "plain", id: "plain", label: "Plain Share URLs", contentId: "tab-content-plain" },
+        { key: "sing-box", id: "singbox", label: "Sing-Box Config (JSON)", contentId: "tab-content-singbox" },
+        { key: "clash", id: "clash", label: "Clash Config (YAML)", contentId: "tab-content-clash" },
+        { key: "json", id: "json", label: "Nodes JSON Array", contentId: "tab-content-json" }
+      ];
+
+      const activeTabs = formatTabConfig.filter(t => enabledFormats.includes(t.key));
+      const initialTab = activeTabs[0] || { id: "b64", contentId: "tab-content-b64" };
+
+      // Base64 V2Ray value
       const b64ValueRaw = Buffer.from(linksOutputText, "utf-8").toString("base64");
       
       const safeName = (sub.name || "Unnamed").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -232,7 +276,24 @@ export async function GET(
         }
       }
 
-      const activeUrl = activeSingleFormat ? `${baseSubUrl}/${activeSingleFormat}` : baseSubUrl;
+      // Compute display classes for each content block
+      const b64DisplayClass = enabledFormats.includes("links") && ((!activeSingleFormat && initialTab.id === "b64") || activeSingleFormat === "v2ray") ? "block" : "hidden";
+      const plainDisplayClass = enabledFormats.includes("plain") && ((!activeSingleFormat && initialTab.id === "plain") || activeSingleFormat === "links") ? "block" : "hidden";
+      const singboxDisplayClass = enabledFormats.includes("sing-box") && ((!activeSingleFormat && initialTab.id === "singbox") || activeSingleFormat === "sing-box") ? "block" : "hidden";
+      const clashDisplayClass = enabledFormats.includes("clash") && ((!activeSingleFormat && initialTab.id === "clash") || activeSingleFormat === "clash") ? "block" : "hidden";
+      const jsonDisplayClass = enabledFormats.includes("json") && ((!activeSingleFormat && initialTab.id === "json") || activeSingleFormat === "json") ? "block" : "hidden";
+
+      // Dynamically derive the active copy URL structure in the box
+      let activeFormatSlug = activeSingleFormat || "";
+      if (!activeFormatSlug && activeTabs.length === 1) {
+        // If only 1 format is active, use its direct slug
+        const key = activeTabs[0].key;
+        activeFormatSlug = key === "links" ? "?format=links" : key === "plain" ? "?format=plain" : key;
+      }
+      
+      const activeUrl = activeFormatSlug 
+        ? (activeFormatSlug.startsWith("?") ? `${baseSubUrl}${activeFormatSlug}` : `${baseSubUrl}/${activeFormatSlug}`)
+        : baseSubUrl;
 
       const html = `<!DOCTYPE html>
 <html lang="en" class="dark">
@@ -376,46 +437,21 @@ export async function GET(
         </div>
         ` : `
         <div class="flex flex-wrap border-b border-slate-800/80 gap-1 overflow-x-auto select-none scroller-hidden">
-          <button 
-            type="button" 
-            id="tab-btn-b64"
-            onclick="switchTab('tab-btn-b64', 'tab-content-b64')"
-            class="tab-btn px-4 py-2.5 text-xs font-bold text-teal-400 border-b-2 border-teal-400 bg-slate-900/50 rounded-t-xl transition whitespace-nowrap cursor-pointer"
-          >
-            Base64 Feed (Standard)
-          </button>
-          <button 
-            type="button" 
-            id="tab-btn-plain"
-            onclick="switchTab('tab-btn-plain', 'tab-content-plain')"
-            class="tab-btn px-4 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition whitespace-nowrap cursor-pointer"
-          >
-            Plain Share URLs
-          </button>
-          <button 
-            type="button" 
-            id="tab-btn-singbox"
-            onclick="switchTab('tab-btn-singbox', 'tab-content-singbox')"
-            class="tab-btn px-4 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition whitespace-nowrap cursor-pointer"
-          >
-            Sing-Box Config (JSON)
-          </button>
-          <button 
-            type="button" 
-            id="tab-btn-clash"
-            onclick="switchTab('tab-btn-clash', 'tab-content-clash')"
-            class="tab-btn px-4 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition whitespace-nowrap cursor-pointer"
-          >
-            Clash Config (YAML)
-          </button>
-          <button 
-            type="button" 
-            id="tab-btn-json"
-            onclick="switchTab('tab-btn-json', 'tab-content-json')"
-            class="tab-btn px-4 py-2.5 text-xs font-bold text-slate-400 border-b-2 border-transparent hover:text-slate-200 transition whitespace-nowrap cursor-pointer"
-          >
-            Nodes JSON Array
-          </button>
+          ${activeTabs.map((tab, idx) => {
+            const isTabActive = tab.id === initialTab.id;
+            const textClass = isTabActive 
+              ? "text-teal-400 border-b-2 border-teal-400 bg-slate-900/50" 
+              : "text-slate-400 border-b-2 border-transparent hover:text-slate-200";
+            return `
+            <button 
+              type="button" 
+              id="tab-btn-${tab.id}"
+              onclick="switchTab('tab-btn-${tab.id}', '${tab.contentId}')"
+              class="tab-btn px-4 py-2.5 text-xs font-bold ${textClass} rounded-t-xl transition whitespace-nowrap cursor-pointer"
+            >
+              ${tab.label}
+            </button>`;
+          }).join("")}
         </div>
         `}
 
@@ -423,7 +459,7 @@ export async function GET(
         <div class="relative bg-slate-950 rounded-2xl border border-slate-850 overflow-hidden">
           
           <!-- TAB 1: BASE64 FEED CONTENT -->
-          <div id="tab-content-b64" class="tab-content ${(!activeSingleFormat || activeSingleFormat === "v2ray") ? "block" : "hidden"}">
+          <div id="tab-content-b64" class="tab-content ${b64DisplayClass}">
             <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
               <span class="text-xs text-slate-400 font-mono font-medium">B64 V2Ray payload (${b64ValueRaw.length} chars)</span>
               <button 
@@ -453,7 +489,7 @@ export async function GET(
           </div>
 
           <!-- TAB 2: PLAIN CONFIGS CONTENT -->
-          <div id="tab-content-plain" class="tab-content ${(!activeSingleFormat && false || activeSingleFormat === "links") ? "block" : "hidden"}">
+          <div id="tab-content-plain" class="tab-content ${plainDisplayClass}">
             <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
               <span class="text-xs text-slate-400 font-mono font-medium">Plain Links Payload (${linksOutputText.length} chars)</span>
               <button 
@@ -483,7 +519,7 @@ export async function GET(
           </div>
 
           <!-- TAB 3: SING-BOX CONFIG FILE -->
-          <div id="tab-content-singbox" class="tab-content ${(!activeSingleFormat && false || activeSingleFormat === "sing-box") ? "block" : "hidden"}">
+          <div id="tab-content-singbox" class="tab-content ${singboxDisplayClass}">
             <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
               <span class="text-xs text-slate-400 font-mono font-medium">Sing-Box Client Profile JSON (${singBoxOutputText.length} chars)</span>
               <button 
@@ -513,7 +549,7 @@ export async function GET(
           </div>
 
           <!-- TAB 4: CLASH CONFIG FILE -->
-          <div id="tab-content-clash" class="tab-content ${(!activeSingleFormat && false || activeSingleFormat === "clash") ? "block" : "hidden"}">
+          <div id="tab-content-clash" class="tab-content ${clashDisplayClass}">
             <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
               <span class="text-xs text-slate-400 font-mono font-medium">Clash Client Profile YAML (${clashOutputText.length} chars)</span>
               <button 
@@ -522,7 +558,7 @@ export async function GET(
                 onclick="copyToClipboard('clash-body', 'copy-btn-clash', 'toast-notify')"
                 class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
               >
-                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 5a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
                 Copy Config
               </button>
             </div>
@@ -543,7 +579,7 @@ export async function GET(
           </div>
 
           <!-- TAB 5: JSON NODES CONTENT -->
-          <div id="tab-content-json" class="tab-content ${(!activeSingleFormat && false || activeSingleFormat === "json") ? "block" : "hidden"}">
+          <div id="tab-content-json" class="tab-content ${jsonDisplayClass}">
             <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
               <span class="text-xs text-slate-400 font-mono font-medium">Nodes JSON Array Payload (${jsonOutputText.length} chars)</span>
               <button 
