@@ -1,49 +1,63 @@
 import { createClient } from "@libsql/client";
 
-let clientInstance: ReturnType<typeof createClient> | null = null;
-let isTableEnsured = false;
+const globalForDb = globalThis as unknown as {
+  clientInstance: ReturnType<typeof createClient> | undefined;
+  isTableEnsured: boolean | undefined;
+  tableEnsuringPromise: Promise<void> | undefined;
+};
 
 function getClient() {
-  if (clientInstance) return clientInstance;
+  if (globalForDb.clientInstance) return globalForDb.clientInstance;
 
   const url = process.env.TURSO_DATABASE_URL || "file:v2ray_local.db";
   const authToken = process.env.TURSO_AUTH_TOKEN || "";
 
-  clientInstance = createClient({
+  globalForDb.clientInstance = createClient({
     url,
     authToken,
   });
   
-  return clientInstance;
+  return globalForDb.clientInstance;
 }
 
-async function ensureTable() {
-  if (isTableEnsured) return;
-  const client = getClient();
-  try {
-    await client.execute(`
-      CREATE TABLE IF NOT EXISTS kv_store (
-        key TEXT PRIMARY KEY,
-        value TEXT
-      )
-    `);
-    await client.execute(`
-      CREATE TABLE IF NOT EXISTS sub_access_metrics (
-        sub_path TEXT NOT NULL,
-        ip TEXT NOT NULL,
-        user_agent TEXT NOT NULL,
-        hwid TEXT NOT NULL,
-        device_type TEXT NOT NULL,
-        access_count INTEGER DEFAULT 1,
-        first_seen_at TEXT NOT NULL,
-        last_seen_at TEXT NOT NULL,
-        PRIMARY KEY (sub_path, ip, user_agent, hwid)
-      )
-    `);
-    isTableEnsured = true;
-  } catch (err) {
-    console.error("Failed to initialize system tables in Turso/SQLite:", err);
+async function ensureTable(): Promise<void> {
+  if (globalForDb.isTableEnsured) return;
+
+  if (globalForDb.tableEnsuringPromise) {
+    return globalForDb.tableEnsuringPromise;
   }
+
+  const client = getClient();
+  
+  globalForDb.tableEnsuringPromise = (async () => {
+    try {
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS kv_store (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `);
+      await client.execute(`
+        CREATE TABLE IF NOT EXISTS sub_access_metrics (
+          sub_path TEXT NOT NULL,
+          ip TEXT NOT NULL,
+          user_agent TEXT NOT NULL,
+          hwid TEXT NOT NULL,
+          device_type TEXT NOT NULL,
+          access_count INTEGER DEFAULT 1,
+          first_seen_at TEXT NOT NULL,
+          last_seen_at TEXT NOT NULL,
+          PRIMARY KEY (sub_path, ip, user_agent, hwid)
+        )
+      `);
+      globalForDb.isTableEnsured = true;
+    } catch (err) {
+      console.error("Failed to initialize system tables in Turso/SQLite:", err);
+      globalForDb.tableEnsuringPromise = undefined;
+    }
+  })();
+
+  return globalForDb.tableEnsuringPromise;
 }
 
 // Define high-level database helper

@@ -5,11 +5,13 @@ import './globals.css'; // Global styles
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
+  preload: false,
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
+  preload: false,
 });
 
 export const metadata: Metadata = {
