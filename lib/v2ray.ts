@@ -13,6 +13,7 @@ export interface Subscription {
   remarksTemplate: string; // e.g. "VIP Server - *"
   jsonConfigs: string; // holds raw input config data
   dummyConfigs: DummyConfig[];
+  nameOverrides?: Record<string, string>; // custom index-based naming overrides
   createdAt: string;
   updatedAt: string;
 }
@@ -367,9 +368,14 @@ export function generateProcessedSubscription(sub: Subscription, format: "links"
       const processedConfigs = configsArray.map((item, index) => {
         if (item && typeof item === "object") {
           const oneBasedIndex = index + 1;
-          const remarkName = template.includes("*")
+          let remarkName = template.includes("*")
             ? template.replaceAll("*", String(oneBasedIndex))
             : `${template} ${oneBasedIndex}`;
+
+          // Check if custom override exists for this specific index
+          if (sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "") {
+            remarkName = sub.nameOverrides[String(index)].trim();
+          }
 
           const clonedObj = JSON.parse(JSON.stringify(item));
           if (clonedObj.remarks !== undefined) {
@@ -397,9 +403,14 @@ export function generateProcessedSubscription(sub: Subscription, format: "links"
   // Process item remarks and formats
   const processedConfigs = configsList.map((item, index) => {
     const oneBasedIndex = index + 1;
-    const remarkName = template.includes("*")
+    let remarkName = template.includes("*")
       ? template.replaceAll("*", String(oneBasedIndex))
       : `${template} ${oneBasedIndex}`;
+
+    // Check if custom override exists for this specific index
+    if (sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "") {
+      remarkName = sub.nameOverrides[String(index)].trim();
+    }
 
     if (typeof item === "string") {
       return updateConfigRemark(item, remarkName);

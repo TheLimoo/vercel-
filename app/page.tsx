@@ -60,6 +60,43 @@ function buildInitialSubscriptionPayload(subscriptionsCount: number): { payload:
   };
 }
 
+function getBatchRenamedName(templateStr: string, index: number): string {
+  const template = templateStr && templateStr.trim() ? templateStr : "Server *";
+  const oneBasedIndex = index + 1;
+  return template.includes("*")
+    ? template.replaceAll("*", String(oneBasedIndex))
+    : `${template} ${oneBasedIndex}`;
+}
+
+function getOriginalConfigRemark(item: any, idx: number): string {
+  if (!item) return `Node #${idx + 1}`;
+  if (typeof item === "string") {
+    const trimmed = item.trim();
+    if (trimmed.startsWith("vmess://")) {
+      const b64Data = trimmed.substring(8);
+      try {
+        const decoded = atob(b64Data);
+        const json = JSON.parse(decoded);
+        return json.ps || `Node #${idx + 1}`;
+      } catch {
+        return `Node #${idx + 1}`;
+      }
+    } else if (trimmed.startsWith("vless://") || trimmed.startsWith("trojan://") || trimmed.startsWith("ss://")) {
+      const hashIndex = trimmed.indexOf("#");
+      if (hashIndex !== -1) {
+        try {
+          return decodeURIComponent(trimmed.substring(hashIndex + 1));
+        } catch {
+          return trimmed.substring(hashIndex + 1);
+        }
+      }
+    }
+  } else if (typeof item === "object") {
+    return item.remarks || item.ps || `Node #${idx + 1}`;
+  }
+  return `Node #${idx + 1}`;
+}
+
 export default function Dashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isUsingDefaultPassword, setIsUsingDefaultPassword] = useState(false);
@@ -77,6 +114,7 @@ export default function Dashboard() {
   const [editRemarksTemplate, setEditRemarksTemplate] = useState("V2Ray-*");
   const [editJsonConfigs, setEditJsonConfigs] = useState("");
   const [editDummyConfigs, setEditDummyConfigs] = useState<DummyConfig[]>([]);
+  const [editNameOverrides, setEditNameOverrides] = useState<Record<string, string>>({});
 
   // Dummy config builder state
   const [newDummyName, setNewDummyName] = useState("");
@@ -89,11 +127,17 @@ export default function Dashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
+  // Tab State & Users connection tracking metrics
+  const [activeTab, setActiveTab] = useState<"config" | "metrics">("config");
+  const [metricsList, setMetricsList] = useState<any[]>([]);
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+
   // Root Host URL calculations computed cleanly during rendering
   const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
-  // Compute detected counts cleanly on rendering without effects
-  const detectedCount = React.useMemo(() => extractConfigsList(editJsonConfigs).length, [editJsonConfigs]);
+  // Compute detected configs list cleanly on rendering
+  const configsList = React.useMemo(() => extractConfigsList(editJsonConfigs), [editJsonConfigs]);
+  const detectedCount = configsList.length;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,6 +148,23 @@ export default function Dashboard() {
     }, 4000);
   };
 
+  const fetchAccessMetrics = async (subPath: string) => {
+    setIsLoadingMetrics(true);
+    try {
+      const res = await fetch(`/api/metrics?path=${encodeURIComponent(subPath)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setMetricsList(data.metrics || []);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch access metrics:", err);
+    } finally {
+      setIsLoadingMetrics(false);
+    }
+  };
+
   const handleSelectSubscription = (sub: Subscription) => {
     setSelectedSubId(sub.id);
     setEditName(sub.name);
@@ -111,6 +172,32 @@ export default function Dashboard() {
     setEditRemarksTemplate(sub.remarksTemplate !== undefined ? sub.remarksTemplate : "Server *");
     setEditJsonConfigs(sub.jsonConfigs || "");
     setEditDummyConfigs(sub.dummyConfigs || []);
+    setEditNameOverrides(sub.nameOverrides || {});
+    
+    if (activeTab === "metrics") {
+      fetchAccessMetrics(sub.path);
+    }
+  };
+
+  const handlePurgeAccessMetrics = async () => {
+    if (!editPath) return;
+    if (!confirm(`Are you sure you want to clear all recorded user and device metrics for /sub/${editPath}?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/metrics?path=${encodeURIComponent(editPath)}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        showToast("Access logs purged successfully!");
+        setMetricsList([]);
+      } else {
+        showToast("Failed to delete metrics history", "error");
+      }
+    } catch {
+      showToast("Network error purging metrics", "error");
+    }
   };
 
   const fetchSubscriptions = async () => {
@@ -131,6 +218,7 @@ export default function Dashboard() {
           setEditRemarksTemplate(first.remarksTemplate !== undefined ? first.remarksTemplate : "Server *");
           setEditJsonConfigs(first.jsonConfigs || "");
           setEditDummyConfigs(first.dummyConfigs || []);
+          setEditNameOverrides(first.nameOverrides || {});
         }
       }
     } catch (err: any) {
@@ -160,6 +248,7 @@ export default function Dashboard() {
             setEditRemarksTemplate(first.remarksTemplate !== undefined ? first.remarksTemplate : "Server *");
             setEditJsonConfigs(first.jsonConfigs || "");
             setEditDummyConfigs(first.dummyConfigs || []);
+            setEditNameOverrides(first.nameOverrides || {});
           }
         }
         setIsRefreshing(false);
@@ -270,6 +359,7 @@ export default function Dashboard() {
       remarksTemplate: editRemarksTemplate,
       jsonConfigs: editJsonConfigs,
       dummyConfigs: editDummyConfigs,
+      nameOverrides: editNameOverrides,
     };
 
     try {
@@ -319,6 +409,7 @@ export default function Dashboard() {
             setEditRemarksTemplate("Server-*");
             setEditJsonConfigs("");
             setEditDummyConfigs([]);
+            setEditNameOverrides({});
           }
         }
         showToast("Deleted subscription successfully!");
@@ -704,8 +795,48 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* SECTION: 1. CORE LINK ROUTING PROPERTIES */}
-              <div id="section_core_settings" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
+              {/* Tab Selector Buttons */}
+              <div className="flex border-b border-slate-800 gap-2 overflow-x-auto scroller-hidden">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("config")}
+                  className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all relative ${
+                    activeTab === "config"
+                      ? "border-sky-500 text-sky-400 bg-sky-500/5 font-bold"
+                      : "border-transparent text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Layers className="h-4 w-4" />
+                  <span>Config Settings</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("metrics");
+                    if (editPath) {
+                      fetchAccessMetrics(editPath);
+                    }
+                  }}
+                  className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all relative ${
+                    activeTab === "metrics"
+                      ? "border-sky-500 text-sky-400 bg-sky-500/5 font-bold"
+                      : "border-transparent text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Globe className="h-4 w-4" />
+                  <span>Users & Device Metrics</span>
+                  {metricsList.length > 0 && (
+                    <span className="bg-sky-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                      {metricsList.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              {activeTab === "config" ? (
+                <>
+                  {/* SECTION: 1. CORE LINK ROUTING PROPERTIES */}
+                  <div id="section_core_settings" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
                   <Globe className="h-5 w-5 text-sky-400 shrink-0" />
                   <h3 className="text-sm font-semibold text-white tracking-wide">
@@ -860,15 +991,79 @@ export default function Dashboard() {
                     
                     <div className="bg-slate-900 border border-slate-850 p-3.5 rounded-xl mt-3 space-y-2">
                       <p className="text-xs text-slate-400 leading-relaxed">
-                        Every parsed config will assume this pattern. If you insert an asterisk <strong className="text-sky-400">*</strong> into the text, the server automatically computes and places serial numbers in sequence!
+                        Every parsed config will assume this pattern. If you insert an asterisk <strong className="text-sky-400">*</strong> into the text, the server automatically computes and places serial numbers in sequence! Or leave it empty to rename using default configuration names.
                       </p>
                       <div className="text-[11px] font-mono text-slate-400 flex flex-wrap items-center gap-4">
                         <span>💡 Example with template <strong>{editRemarksTemplate || "Server *"}</strong>:</span>
-                        <span className="text-teal-400 font-semibold">#1: {(editRemarksTemplate || "Server *").includes("*") ? (editRemarksTemplate || "Server *").replaceAll("*", "1") : `${editRemarksTemplate || "Server *"} 1`}</span>
-                        <span className="text-teal-400 font-semibold">#2: {(editRemarksTemplate || "Server *").includes("*") ? (editRemarksTemplate || "Server *").replaceAll("*", "2") : `${editRemarksTemplate || "Server *"} 2`}</span>
-                        <span className="text-teal-400 font-semibold">#3: {(editRemarksTemplate || "Server *").includes("*") ? (editRemarksTemplate || "Server *").replaceAll("*", "3") : `${editRemarksTemplate || "Server *"} 3`}</span>
+                        <span className="text-teal-400 font-semibold">#1: {getBatchRenamedName(editRemarksTemplate, 0)}</span>
+                        <span className="text-teal-400 font-semibold">#2: {getBatchRenamedName(editRemarksTemplate, 1)}</span>
+                        <span className="text-teal-400 font-semibold">#3: {getBatchRenamedName(editRemarksTemplate, 2)}</span>
                       </div>
                     </div>
+
+                    {configsList.length > 0 && (
+                      <div className="mt-5 pt-4 border-t border-slate-800/60 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">
+                            ✏️ Specific Node Renaming Overrides (Optional)
+                          </label>
+                          <span className="text-[10px] font-mono text-slate-500">
+                            Count: {configsList.length}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          Optionally specify custom name overrides for individual nodes after batch renaming is computed above.
+                        </p>
+                        
+                        <div className="border border-slate-800/80 rounded-xl overflow-hidden max-h-[300px] overflow-y-auto bg-slate-900/40">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-950/95 font-mono text-[10px] text-slate-400 border-b border-slate-800 uppercase tracking-wider select-none sticky top-0 z-10">
+                                <th className="py-2.5 px-3.5 w-16 text-center">Index</th>
+                                <th className="py-2.5 px-3">Original Remark</th>
+                                <th className="py-2.5 px-3">Batch Name</th>
+                                <th className="py-2.5 px-4 w-5/12">Custom Name Override</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-850/30">
+                              {configsList.map((item, index) => {
+                                const originalName = getOriginalConfigRemark(item, index);
+                                const batchName = getBatchRenamedName(editRemarksTemplate, index);
+                                const customOverride = editNameOverrides[index] || "";
+                                return (
+                                  <tr key={index} className="hover:bg-slate-900/30 transition-colors">
+                                    <td className="py-2.5 px-3.5 text-center font-mono text-[11px] text-slate-500 font-bold">
+                                      #{index + 1}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-xs text-slate-400 truncate max-w-[140px]" title={originalName}>
+                                      {originalName}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-xs text-slate-400 truncate max-w-[140px]" title={batchName}>
+                                      {batchName}
+                                    </td>
+                                    <td className="py-2.5 px-4">
+                                      <input
+                                        type="text"
+                                        value={customOverride}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          setEditNameOverrides(prev => ({
+                                            ...prev,
+                                            [index]: val
+                                          }));
+                                        }}
+                                        placeholder="Customize name..."
+                                        className="w-full px-3 py-1.5 bg-slate-950 border border-slate-850 rounded-lg text-xs text-white focus:outline-none focus:border-sky-500 font-sans transition-all"
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1075,7 +1270,172 @@ export default function Dashboard() {
                 </button>
               </div>
 
+            </>
+          ) : (
+            <div className="space-y-6 pb-12 animate-fade-in duration-300">
+              {/* Header row inside tab */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950 p-5 rounded-2xl border border-slate-800">
+                <div>
+                  <h3 className="text-base font-semibold text-white tracking-tight flex items-center gap-2">
+                    <span>👥 Subscription Consumer Metrics</span>
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-1">
+                    Active devices and V2Ray clients subscribing to <code className="bg-slate-900 text-sky-400 px-1.5 py-0.5 rounded font-mono">/sub/{editPath}</code>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isLoadingMetrics}
+                  onClick={() => fetchAccessMetrics(editPath)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 hover:bg-slate-850 text-xs font-semibold rounded-xl text-slate-200 transition disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 text-slate-300 ${isLoadingMetrics ? "animate-spin" : ""}`} />
+                  <span>Refresh Stats</span>
+                </button>
+              </div>
+
+              {/* Summary grid stats */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800">
+                  <span className="text-[10px] uppercase font-mono font-bold text-slate-500 tracking-wider">Unique Consumers</span>
+                  <p className="text-3xl font-bold font-mono text-white mt-1">{metricsList.length}</p>
+                  <p className="text-[11px] text-slate-500 mt-2">Individual combinations of IP & Client HWID</p>
+                </div>
+
+                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800">
+                  <span className="text-[10px] uppercase font-mono font-bold text-slate-500 tracking-wider">Accumulated Fetch Hits</span>
+                  <p className="text-3xl font-bold font-mono text-emerald-400 mt-1">
+                    {metricsList.reduce((sum, item) => sum + (item.access_count || 1), 0)}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-2">Combined hits across all devices since creation</p>
+                </div>
+
+                <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] uppercase font-mono font-bold text-slate-500 tracking-wider font-semibold">Metrics Database Operations</span>
+                    <p className="text-sm font-semibold text-slate-300 mt-1.5 font-mono">
+                      ● Logging is active
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handlePurgeAccessMetrics}
+                    className="w-full text-center text-xs font-semibold text-red-400 bg-red-950/20 border border-red-900/30 hover:bg-red-950/50 hover:border-red-500/40 py-1.5 rounded-lg transition mt-3"
+                  >
+                    🗑️ Purge recorded history
+                  </button>
+                </div>
+              </div>
+
+              {/* Node Devices List */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pl-1">
+                  <h4 className="text-xs font-semibold hover:text-white transition uppercase font-mono tracking-wider text-slate-400">
+                    📱 Recorded Active Consumer Device Slots ({metricsList.length})
+                  </h4>
+                </div>
+
+                {isLoadingMetrics ? (
+                  <div className="flex flex-col items-center justify-center p-12 bg-slate-950 border border-slate-800 rounded-2xl space-y-3">
+                    <RefreshCw className="h-6 w-6 text-sky-400 animate-spin" />
+                    <span className="text-xs text-slate-400 font-medium">Querying connection logs table...</span>
+                  </div>
+                ) : metricsList.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-12 bg-slate-950 border border-slate-800 rounded-2xl text-center space-y-3">
+                    <div className="p-3 bg-slate-900 rounded-2xl border border-slate-850 text-slate-500">
+                      <Globe className="h-6 w-6" />
+                    </div>
+                    <h5 className="text-sm font-bold text-slate-300">No active consumer seen yet</h5>
+                    <p className="text-slate-500 text-xs max-w-sm">
+                      Once you configure clients (v2rayNG, Shadowrocket, Quantumult X, etc.) to fetch this subscription link, their devices will automatically appear here!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {metricsList.map((item, idx) => {
+                      const hasHwid = item.hwid && item.hwid.trim() !== "";
+                      return (
+                        <div 
+                          key={`${item.ip}-${idx}`}
+                          className="bg-slate-950/70 border border-slate-800/80 p-4 rounded-2xl flex flex-col justify-between hover:border-slate-700 transition duration-200 text-left"
+                        >
+                          <div className="space-y-3">
+                            {/* Badges Header row */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="bg-sky-500/10 text-sky-400 border border-sky-400/20 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                                {item.device_type || "Generic client"}
+                              </span>
+                              <span className="bg-slate-900 text-slate-300 border border-slate-800/80 text-[10px] font-mono px-2 py-0.5 rounded-full">
+                                IP: {item.ip || "Unknown IP"}
+                              </span>
+                              <span className="ml-auto text-[11px] font-mono text-slate-500 font-bold bg-slate-900 px-2.5 py-0.5 border border-slate-800/80 rounded-md">
+                                {item.access_count || 1} hits
+                              </span>
+                            </div>
+
+                            {/* HWID Slot rendering */}
+                            <div className="bg-slate-900/60 border border-slate-850 p-2.5 rounded-xl text-xs flex flex-col space-y-1">
+                              <span className="text-[9px] font-mono text-slate-500 font-bold uppercase tracking-wider">
+                                Client Hardware ID (HWID)
+                              </span>
+                              {hasHwid ? (
+                                <div className="flex items-center justify-between gap-2">
+                                  <code className="text-amber-400 font-mono text-[11px] truncate max-w-[200px]" title={item.hwid}>
+                                    {item.hwid}
+                                  </code>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(item.hwid);
+                                      showToast("HWID copied to clipboard!");
+                                    }}
+                                    className="text-[10px] text-sky-400 hover:underline shrink-0"
+                                  >
+                                    Copy ID
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="italic text-slate-500 text-[11px]">
+                                  No hardware ID emitted (Fetched via standard subscriber URI)
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Raw user-agent expandable detail fallback */}
+                            <details className="group">
+                              <summary className="text-[10px] font-mono text-slate-500 cursor-pointer list-none flex items-center justify-between hover:text-slate-400 select-none">
+                                <span>🔍 Show Raw Headers / User-Agent</span>
+                                <span className="group-open:rotate-180 transition-transform">▼</span>
+                              </summary>
+                              <div className="mt-2 bg-slate-950 p-2 rounded border border-slate-850/50">
+                                <p className="text-[10px] text-slate-400 font-mono break-all leading-relaxed whitespace-pre-wrap">
+                                  {item.user_agent || "No User-Agent provided"}
+                                </p>
+                              </div>
+                            </details>
+                          </div>
+
+                          {/* Timestamps footer */}
+                          <div className="border-t border-slate-850/40 mt-4 pt-3 flex items-center justify-between text-[10px] text-slate-500 font-mono font-medium">
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3 inline" />
+                              Seen first: {new Date(item.first_seen_at).toLocaleDateString()}
+                            </span>
+                            <span>
+                              Active last: {new Date(item.last_seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
+          )}
+
+        </div>
           )}
         </main>
 

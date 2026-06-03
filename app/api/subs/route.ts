@@ -55,9 +55,10 @@ export async function POST(req: NextRequest) {
             ...existing,
             name: subData.name!,
             path: subData.path!,
-            remarksTemplate: subData.remarksTemplate || "Server *",
+            remarksTemplate: subData.remarksTemplate !== undefined ? subData.remarksTemplate : "Server *",
             jsonConfigs: subData.jsonConfigs || "",
             dummyConfigs: subData.dummyConfigs || [],
+            nameOverrides: subData.nameOverrides || {},
             updatedAt: new Date().toISOString(),
           };
         }
@@ -69,9 +70,10 @@ export async function POST(req: NextRequest) {
         id: `sub_${crypto.randomUUID().substring(0, 8)}`,
         name: subData.name,
         path: subData.path,
-        remarksTemplate: subData.remarksTemplate || "Server *",
+        remarksTemplate: subData.remarksTemplate !== undefined ? subData.remarksTemplate : "Server *",
         jsonConfigs: subData.jsonConfigs || "",
         dummyConfigs: subData.dummyConfigs || [],
+        nameOverrides: subData.nameOverrides || {},
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

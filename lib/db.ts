@@ -27,9 +27,22 @@ async function ensureTable() {
         value TEXT
       )
     `);
+    await client.execute(`
+      CREATE TABLE IF NOT EXISTS sub_access_metrics (
+        sub_path TEXT NOT NULL,
+        ip TEXT NOT NULL,
+        user_agent TEXT NOT NULL,
+        hwid TEXT NOT NULL,
+        device_type TEXT NOT NULL,
+        access_count INTEGER DEFAULT 1,
+        first_seen_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        PRIMARY KEY (sub_path, ip, user_agent, hwid)
+      )
+    `);
     isTableEnsured = true;
   } catch (err) {
-    console.error("Failed to initialize kv_store table in Turso/SQLite:", err);
+    console.error("Failed to initialize system tables in Turso/SQLite:", err);
   }
 }
 
@@ -93,3 +106,87 @@ export async function setKV<T>(key: string, value: T): Promise<void> {
     throw err;
   }
 }
+
+export interface AccessMetric {
+  sub_path: string;
+  ip: string;
+  user_agent: string;
+  hwid: string;
+  device_type: string;
+  access_count: number;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export async function logSubAccess(
+  subPath: string,
+  ip: string,
+  ua: string,
+  hwid: string,
+  deviceType: string
+): Promise<void> {
+  try {
+    await ensureTable();
+    const client = getClient();
+    const now = new Date().toISOString();
+
+    await client.execute({
+      sql: `
+        INSERT INTO sub_access_metrics (sub_path, ip, user_agent, hwid, device_type, access_count, first_seen_at, last_seen_at)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+        ON CONFLICT (sub_path, ip, user_agent, hwid) DO UPDATE SET
+          access_count = access_count + 1,
+          last_seen_at = excluded.last_seen_at,
+          device_type = CASE WHEN excluded.device_type != '' THEN excluded.device_type ELSE device_type END
+      `,
+      args: [subPath.toLowerCase(), ip, ua, hwid, deviceType, now, now]
+    });
+  } catch (err) {
+    console.error(`logSubAccess failed for path "${subPath}":`, err);
+  }
+}
+
+export async function getSubAccessMetrics(subPath?: string): Promise<AccessMetric[]> {
+  try {
+    await ensureTable();
+    const client = getClient();
+    
+    let res;
+    if (subPath) {
+      res = await client.execute({
+        sql: "SELECT * FROM sub_access_metrics WHERE sub_path = ? ORDER BY last_seen_at DESC",
+        args: [subPath.toLowerCase()]
+      });
+    } else {
+      res = await client.execute("SELECT * FROM sub_access_metrics ORDER BY last_seen_at DESC");
+    }
+
+    return res.rows.map(row => ({
+      sub_path: String(row.sub_path),
+      ip: String(row.ip),
+      user_agent: String(row.user_agent),
+      hwid: String(row.hwid),
+      device_type: String(row.device_type),
+      access_count: Number(row.access_count),
+      first_seen_at: String(row.first_seen_at),
+      last_seen_at: String(row.last_seen_at)
+    }));
+  } catch (err) {
+    console.error("getSubAccessMetrics failed:", err);
+    return [];
+  }
+}
+
+export async function deleteSubAccessMetrics(subPath: string): Promise<void> {
+  try {
+    await ensureTable();
+    const client = getClient();
+    await client.execute({
+      sql: "DELETE FROM sub_access_metrics WHERE sub_path = ?",
+      args: [subPath.toLowerCase()]
+    });
+  } catch (err) {
+    console.error("deleteSubAccessMetrics failed:", err);
+  }
+}
+
