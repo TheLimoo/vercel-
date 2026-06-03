@@ -1163,159 +1163,166 @@ export default function Dashboard() {
 
                 {/* Live Client Link Generation Panel */}
                 <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 space-y-4">
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                        Default JSON Subscription Feed (Raw Config Objects - Default)
-                      </span>
-                      <span className="text-[10px] text-teal-400 bg-teal-500/10 border border-teal-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                        JSON Feed
-                      </span>
-                    </div>
+                  {(() => {
+                    const subNameHash = editName ? `#${encodeURIComponent(editName)}` : "";
+                    return (
+                      <>
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
+                              Default JSON Subscription Feed (Raw Config Objects - Default)
+                            </span>
+                            <span className="text-[10px] text-teal-400 bg-teal-500/10 border border-teal-500/20 rounded px-2 py-0.5 font-bold font-mono">
+                              JSON Feed
+                            </span>
+                          </div>
 
-                    {editPath ? (
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all">
-                          {`${appOrigin}/sub/${editPath}`}
+                          {editPath ? (
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all">
+                                {`${appOrigin}/sub/${editPath}${subNameHash}`}
+                              </div>
+                              
+                              <button
+                                id="copy_sub_link_btn"
+                                onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}${subNameHash}`, "standard")}
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                                title="Copy subscription address"
+                              >
+                                {copiedLink === "standard" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                              </button>
+
+                              <a
+                                href={`/sub/${editPath}${subNameHash}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
+                                title="Inspect raw details in browser"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-slate-500 font-mono">Fill in a valid slug path structure above</p>
+                          )}
                         </div>
-                        
-                        <button
-                          id="copy_sub_link_btn"
-                          onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}`, "standard")}
-                          className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
-                          title="Copy subscription address"
-                        >
-                          {copiedLink === "standard" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                        </button>
 
-                        <a
-                          href={`/sub/${editPath}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                          title="Inspect raw details in browser"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-500 font-mono">Fill in a valid slug path structure above</p>
-                    )}
-                  </div>
+                        {editPath && (
+                          <div className="pt-2 border-t border-slate-800/80">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
+                                Legacy Base64 Links Feed (Standard client subscription compatible)
+                              </span>
+                              <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-0.5 font-bold font-mono">
+                                Links Feed
+                              </span>
+                            </div>
 
-                  {editPath && (
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                          Legacy Base64 Links Feed (Standard client subscription compatible)
-                        </span>
-                        <span className="text-[10px] text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                          Links Feed
-                        </span>
-                      </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
+                                {`${appOrigin}/sub/${editPath}?format=links${subNameHash}`}
+                              </div>
+                              
+                              <button
+                                id="copy_sub_json_link_btn"
+                                onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}?format=links${subNameHash}`, "json_format")}
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                                title="Copy Base64 subscription address"
+                              >
+                                {copiedLink === "json_format" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                              </button>
 
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
-                          {`${appOrigin}/sub/${editPath}?format=links`}
-                        </div>
-                        
-                        <button
-                          id="copy_sub_json_link_btn"
-                          onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}?format=links`, "json_format")}
-                          className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
-                          title="Copy Base64 subscription address"
-                        >
-                          {copiedLink === "json_format" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                        </button>
+                              <a
+                                href={`/sub/${editPath}?format=links${subNameHash}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
+                                title="View output Base64 Links"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </div>
+                          </div>
+                        )}
 
-                        <a
-                          href={`/sub/${editPath}?format=links`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                          title="View output Base64 Links"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </div>
-                    </div>
-                  )}
+                        {editPath && (
+                          <div className="pt-2 border-t border-slate-800/80">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
+                                Sing-Box JSON Configuration Profile (Direct Client Compatible)
+                              </span>
+                              <span className="text-[10px] text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded px-2 py-0.5 font-bold font-mono">
+                                Sing-Box
+                              </span>
+                            </div>
 
-                  {editPath && (
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                          Sing-Box JSON Configuration Profile (Direct Client Compatible)
-                        </span>
-                        <span className="text-[10px] text-violet-400 bg-violet-500/10 border border-violet-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                          Sing-Box
-                        </span>
-                      </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
+                                {`${appOrigin}/sub/${editPath}/sing-box${subNameHash}`}
+                              </div>
+                              
+                              <button
+                                id="copy_sub_singbox_btn"
+                                onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}/sing-box${subNameHash}`, "singbox")}
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                                title="Copy Sing-Box subscription address"
+                              >
+                                {copiedLink === "singbox" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                              </button>
 
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
-                          {`${appOrigin}/sub/${editPath}/sing-box`}
-                        </div>
-                        
-                        <button
-                          id="copy_sub_singbox_btn"
-                          onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}/sing-box`, "singbox")}
-                          className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
-                          title="Copy Sing-Box subscription address"
-                        >
-                          {copiedLink === "singbox" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                        </button>
+                              <a
+                                href={`/sub/${editPath}/sing-box${subNameHash}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
+                                title="View output Singbox JSON"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </div>
+                          </div>
+                        )}
 
-                        <a
-                          href={`/sub/${editPath}/sing-box`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                          title="View output Singbox JSON"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </div>
-                    </div>
-                  )}
+                        {editPath && (
+                          <div className="pt-2 border-t border-slate-800/80">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
+                                Clash Premium YAML Configuration Profile (Clash/Meta Compatible)
+                              </span>
+                              <span className="text-[10px] text-sky-450 bg-sky-500/10 border border-sky-500/20 rounded px-2 py-0.5 font-bold font-mono">
+                                Clash Premium
+                              </span>
+                            </div>
 
-                  {editPath && (
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold">
-                          Clash Premium YAML Configuration Profile (Clash/Meta Compatible)
-                        </span>
-                        <span className="text-[10px] text-sky-450 bg-sky-500/10 border border-sky-500/20 rounded px-2 py-0.5 font-bold font-mono">
-                          Clash Premium
-                        </span>
-                      </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
+                                {`${appOrigin}/sub/${editPath}/clash${subNameHash}`}
+                              </div>
+                              
+                              <button
+                                id="copy_sub_clash_btn"
+                                onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}/clash${subNameHash}`, "clash")}
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                                title="Copy Clash subscription address"
+                              >
+                                {copiedLink === "clash" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                              </button>
 
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-sky-300 truncate select-all font-semibold">
-                          {`${appOrigin}/sub/${editPath}/clash`}
-                        </div>
-                        
-                        <button
-                          id="copy_sub_clash_btn"
-                          onClick={() => copyToClipboard(`${appOrigin}/sub/${editPath}/clash`, "clash")}
-                          className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
-                          title="Copy Clash subscription address"
-                        >
-                          {copiedLink === "clash" ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                        </button>
-
-                        <a
-                          href={`/sub/${editPath}/clash`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
-                          title="View output Clash YAML"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </div>
-                    </div>
-                  )}
+                              <a
+                                href={`/sub/${editPath}/clash${subNameHash}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
+                                title="View output Clash YAML"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
                     Clients such as <strong>Sing-Box</strong>, <strong>Clash Meta</strong>, <strong>V2RayN</strong>, <strong>Shadowrocket</strong>, or <strong>v2rayNG</strong> query these URLs dynamically to obtain up-to-date active nodes! Standard V2Ray client apps expect <strong>Links Feed</strong>, while modern proxies directly utilize native <strong>Sing-Box</strong> or <strong>Clash</strong> configs.

@@ -316,9 +316,10 @@ export async function GET(
         }
       }
       
-      const activeUrl = activeFormatSlug 
+      const subNameHash = `#${encodeURIComponent(sub.name || "Unnamed")}`;
+      const activeUrl = (activeFormatSlug 
         ? (activeFormatSlug.startsWith("?") ? `${baseSubUrl}${activeFormatSlug}` : `${baseSubUrl}/${activeFormatSlug}`)
-        : baseSubUrl;
+        : baseSubUrl) + subNameHash;
 
       const html = `<!DOCTYPE html>
 <html lang="en" class="dark">
