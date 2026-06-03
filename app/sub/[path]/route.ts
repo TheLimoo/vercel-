@@ -300,14 +300,17 @@ export async function GET(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Limoo &mdash; ${safeName} Subscription</title>
+  <title>🍋 Limoo Gateway &mdash; ${safeName}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;650;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;505;600&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: 'Inter', sans-serif;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    h1, h2, h3, h4, .font-display {
+      font-family: 'Space Grotesk', sans-serif;
     }
     .font-mono {
       font-family: 'JetBrains Mono', monospace;
@@ -317,107 +320,164 @@ export async function GET(
       height: 6px;
     }
     ::-webkit-scrollbar-track {
-      background: rgba(15, 23, 42, 0.4);
+      background: rgba(8, 15, 8, 0.4);
     }
     ::-webkit-scrollbar-thumb {
-      background: rgba(51, 65, 85, 0.4);
+      background: rgba(132, 204, 22, 0.2);
       border-radius: 9999px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: rgba(51, 65, 85, 0.7);
+      background: rgba(132, 204, 22, 0.5);
+    }
+    .lime-glow {
+      box-shadow: 0 0 35px -5px rgba(132, 204, 22, 0.15);
+    }
+    .citrus-gradient {
+      background: linear-gradient(135deg, #a3e635 0%, #facc15 100%);
+    }
+    
+    /* Subtle background bubble float */
+    @keyframes floatBubble {
+      0% { transform: translateY(100vh) scale(0.8); opacity: 0; }
+      10% { opacity: 0.12; }
+      90% { opacity: 0.12; }
+      100% { transform: translateY(-20vh) scale(1.2); opacity: 0; }
+    }
+    .citrus-bubble {
+      position: absolute;
+      background: radial-gradient(circle, rgba(163, 230, 53, 0.15) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
     }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-start p-4 md:p-8 antialiased">
+<body class="bg-black text-slate-100 min-h-screen relative flex flex-col items-center justify-start p-4 md:p-8 antialiased overflow-x-hidden selection:bg-lime-500/30 selection:text-lime-300">
   
-  <div class="max-w-3xl w-full space-y-8 my-auto py-10">
+  <!-- GLOWING LIME ORBS ATMOSPHERE -->
+  <div class="absolute inset-x-0 top-0 h-[500px] bg-[radial-gradient(circle_at_top_right,rgba(163,230,53,0.08),transparent_55%)] pointer-events-none"></div>
+  <div class="absolute inset-x-0 bottom-0 h-[600px] bg-[radial-gradient(circle_at_bottom_left,rgba(250,204,21,0.04),transparent_60%)] pointer-events-none"></div>
+
+  <!-- FLOATING BUBBLES BACKGROUND DECORATION -->
+  <div class="absolute inset-0 overflow-hidden pointer-events-none">
+    <div class="citrus-bubble w-40 h-40 left-[10%] opacity-10" style="animation: floatBubble 22s infinite linear; bottom: -150px;"></div>
+    <div class="citrus-bubble w-28 h-28 right-[15%] opacity-10" style="animation: floatBubble 18s infinite linear 4s; bottom: -120px;"></div>
+    <div class="citrus-bubble w-48 h-48 left-[75%] opacity-10" style="animation: floatBubble 26s infinite linear 9s; bottom: -180px;"></div>
+  </div>
+
+  <div class="max-w-3xl w-full space-y-8 my-auto py-8 relative z-10">
     
     <!-- Limoo elegant logo and header -->
-    <div class="text-center space-y-3 p-2">
-      <div class="inline-flex items-center justify-center p-3.5 bg-gradient-to-br from-teal-500/10 to-sky-500/10 border border-teal-500/20 rounded-3xl shadow-xl shadow-teal-500/5 select-none animate-pulse">
-        <svg class="h-9 w-9 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 5a7 7 0 100 14 7 7 0 000-14zM12 8a4 4 0 110 8 4 4 0 010-8z"></path>
-        </svg>
+    <div class="text-center space-y-4 p-2 relative">
+      <div class="inline-flex items-center justify-center p-4 bg-lime-500/10 border border-lime-500/20 rounded-[2rem] shadow-xl shadow-lime-500/5 select-none transition-transform hover:scale-105 duration-300">
+        <span class="text-4xl filter drop-shadow-[0_4px_10px_rgba(132,204,22,0.3)] select-none">🍋</span>
       </div>
       <div>
-        <h1 class="text-3xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2 select-none">
-          <span class="text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-sky-400 font-black">Limoo</span>
-          <span class="text-slate-400 font-light">&bull; Secure Subscription</span>
+        <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2 select-none">
+          <span class="text-transparent bg-clip-text bg-gradient-to-r from-lime-400 to-yellow-350 font-black">Limoo</span>
+          <span class="text-slate-400 font-light">&bull; Secure Proxy Feed</span>
         </h1>
-        <p class="text-slate-500 text-[10px] mt-1 font-mono tracking-wider uppercase select-none">
-          Subscription Management Service
+        <p class="text-slate-500 text-[10px] mt-1.5 font-mono tracking-widest uppercase select-none flex items-center justify-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-lime-400 animate-ping"></span>
+          Sync Engine &bull; Core Pruning Active
         </p>
       </div>
     </div>
 
     <!-- Main subscription details card -->
-    <div class="bg-slate-900/40 backdrop-blur-md rounded-3xl border border-slate-800/80 p-6 md:p-8 space-y-6 shadow-2xl relative overflow-hidden">
+    <div class="bg-slate-900/30 backdrop-blur-xl rounded-3xl border border-slate-900/80 p-6 md:p-8 space-y-6 shadow-2xl relative lime-glow">
       <!-- Glow decoration item -->
-      <div class="absolute -top-12 -right-12 w-32 h-32 bg-teal-500/10 rounded-full blur-3xl pointer-events-none select-none"></div>
+      <div class="absolute -top-12 -right-12 w-36 h-36 bg-lime-500/5 rounded-full blur-3xl pointer-events-none select-none"></div>
       
+      <!-- Diagnostic indicators -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 select-none">
+        <div class="p-3 bg-slate-950/60 border border-slate-900/70 rounded-2xl flex flex-col justify-between">
+          <span class="text-[10px] uppercase font-mono tracking-wider text-slate-450 block">Feed Status</span>
+          <span class="text-xs font-bold text-lime-400 mt-1 flex items-center gap-1">
+            <span class="inline-block w-2.5 h-2.5 rounded-full bg-lime-400/20 text-lime-400 animate-pulse text-[10px] text-center leading-none">●</span>
+            Freshly Squeezed
+          </span>
+        </div>
+        <div class="p-3 bg-slate-950/60 border border-slate-900/70 rounded-2xl flex flex-col justify-between">
+          <span class="text-[10px] uppercase font-mono tracking-wider text-slate-450 block">Available Nodes</span>
+          <span class="text-xs font-bold text-white mt-1 font-mono">${totalServers} Servers</span>
+        </div>
+        <div class="p-3 bg-slate-950/60 border border-slate-900/70 rounded-2xl flex flex-col justify-between">
+          <span class="text-[10px] uppercase font-mono tracking-wider text-slate-450 block">Dummies</span>
+          <span class="text-xs font-semibold text-slate-400 mt-1 font-mono">${totalDummies} Banners</span>
+        </div>
+        <div class="p-3 bg-slate-950/60 border border-slate-900/70 rounded-2xl flex flex-col justify-between col-span-2 md:col-span-1">
+          <span class="text-[10px] uppercase font-mono tracking-wider text-slate-450 block">Compression</span>
+          <span class="text-xs font-bold text-yellow-400 mt-1 font-mono">Pruned 60s Cached</span>
+        </div>
+      </div>
+
       <!-- Sub info grid -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-slate-800/60 select-none">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-zinc-900/60 select-none">
         <div class="space-y-4">
-          <h2 class="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">Subscription Parameters</h2>
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400 font-medium">Name:</span>
-              <span class="text-sm font-semibold text-white">${safeName}</span>
+          <h2 class="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="w-1 h-3 rounded bg-lime-400"></span> Profile parameters
+          </h2>
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between border-b border-slate-900/40 pb-1.5">
+              <span class="text-xs text-slate-400">Label</span>
+              <span class="text-xs font-semibold text-white font-mono bg-zinc-900/50 px-2.5 py-1 rounded" title="${safeName}">${safeName}</span>
+            </div>
+            <div class="flex items-center justify-between border-b border-slate-900/40 pb-1.5">
+              <span class="text-xs text-slate-400">Relative Path</span>
+              <span class="text-xs font-mono bg-slate-950 px-2 py-0.5 rounded text-lime-400 border border-slate-900">/${safePath}${activeSingleFormat ? "/" + activeSingleFormat : ""}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400 font-medium">Path:</span>
-              <span class="text-xs font-mono bg-slate-950 px-2 py-1 rounded text-teal-400 border border-slate-800">/${safePath}${activeSingleFormat ? "/" + activeSingleFormat : ""}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400 font-medium">Node Population:</span>
-              <span class="text-sm font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full font-mono text-xs">
-                ${totalServers} servers (${totalDummies} dummies)
-              </span>
+              <span class="text-xs text-slate-400">Node Splicer</span>
+              <span class="text-xs text-slate-300 font-mono">Custom template rules</span>
             </div>
           </div>
         </div>
 
         <div class="space-y-4">
-          <h2 class="text-xs font-mono font-bold text-slate-500 uppercase tracking-wider">Your Device Connection Context</h2>
-          <div class="space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400 font-medium">Your IP Address:</span>
-              <span class="text-sm font-semibold text-white font-mono">${safeIp}</span>
+          <h2 class="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+            <span class="w-1 h-3 rounded bg-lime-400"></span> Session Context
+          </h2>
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between border-b border-slate-900/40 pb-1.5">
+              <span class="text-xs text-slate-400">Client Address</span>
+              <span class="text-xs font-semibold text-slate-200 font-mono" title="Your external IP address">${safeIp}</span>
+            </div>
+            <div class="flex items-center justify-between border-b border-slate-900/40 pb-1.5">
+              <span class="text-xs text-slate-400">Resolved Client</span>
+              <span class="text-xs text-slate-300 max-w-[200px] truncate font-mono text-right" title="${safeDeviceType}">${safeDeviceType}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400 font-medium">User-Agent:</span>
-              <span class="text-xs text-slate-300 max-w-[200px] truncate" title="${safeDeviceType}">${safeDeviceType}</span>
-            </div>
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-slate-400 font-medium">Hardware ID (HWID):</span>
-              <span class="text-xs text-slate-400 font-mono italic truncate max-w-[150px]">${safeHwid}</span>
+              <span class="text-xs text-slate-400">Hardware Fingerprint</span>
+              <span class="text-xs text-slate-450 font-mono italic truncate max-w-[150px] text-right" title="${safeHwid}">${safeHwid}</span>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Quick client integration url segment -->
-      <div id="sub_url_block" class="space-y-3 bg-slate-950/40 border border-slate-800/80 p-5 rounded-2xl">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 select-none">
-          <div>
-            <h3 class="text-sm font-bold text-slate-200">
-              ${activeSingleFormat ? activeSingleFormat.toUpperCase() + " Direct sub URL" : "Auto-Sync Subscription URL"}
+      <div id="sub_url_block" class="space-y-3 bg-slate-950/60 border border-slate-900 p-5 rounded-2xl relative">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 select-none">
+          <div class="space-y-1">
+            <h3 class="text-sm font-bold text-slate-200 flex items-center gap-1.5">
+              <span>⚡</span> ${activeSingleFormat ? activeSingleFormat.toUpperCase() + " Direct subscription URL" : "Auto-Sync Subscription URL"}
             </h3>
-            <p class="text-xs text-slate-500">
-              Provide this direct link to client apps sync engines to fetch verified node profiles dynamically.
+            <p class="text-xs text-slate-500 leading-normal max-w-xl">
+              Add this primary connection URL directly to your clients (Shadowrocket, v2rayNG, sing-box, Clash, FoXray).
             </p>
           </div>
           <button 
             type="button" 
             id="sub-url-copy-btn"
             onclick="navigator.clipboard.writeText('${activeUrl}').then(() => { showToast('toast-notify'); });"
-            class="flex items-center justify-center bg-teal-500 hover:bg-teal-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap self-start md:self-auto shadow-lg shadow-teal-500/10 cursor-pointer"
+            class="flex items-center justify-center bg-lime-400 hover:bg-lime-300 active:bg-lime-500 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all self-start md:self-auto shadow-lg shadow-lime-500/10 cursor-pointer"
           >
-            <svg class="h-3.5 w-3.5 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+            <svg class="h-3.5 w-3.5 mr-1" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
             Copy URL
           </button>
         </div>
-        <div class="bg-slate-950 border border-slate-900 rounded-xl p-3 select-all overflow-x-auto text-xs text-slate-300 font-mono whitespace-nowrap">
+        <div class="bg-black/80 border border-slate-900 rounded-xl p-3 select-all overflow-x-auto text-xs text-lime-400/90 font-mono whitespace-nowrap leading-none select-all relative group">
+          <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-650 font-sans uppercase pointer-events-none group-hover:text-amber-500/80 transition">Auto-Select</span>
           ${activeUrl}
         </div>
       </div>
@@ -426,28 +486,28 @@ export async function GET(
       <div id="sub_tabs_block" class="space-y-4 pt-2">
         ${activeSingleFormat ? `
         <!-- Single format subpage banner -->
-        <div class="flex items-center justify-between border-b border-slate-800 pb-2.5 select-none">
-          <span class="text-xs text-teal-400 font-mono font-bold uppercase tracking-wider bg-teal-500/10 border border-teal-500/20 px-2.5 py-1 rounded-md">
+        <div class="flex items-center justify-between border-b border-slate-900 pb-2.5 select-none">
+          <span class="text-xs text-lime-400 font-mono font-bold uppercase tracking-wider bg-lime-500/5 border border-lime-500/20 px-2.5 py-1 rounded-md">
             ${activeSingleFormat === "sing-box" ? "Sing-Box Client JSON Config" : 
               activeSingleFormat === "clash" ? "Clash Client Premium YAML" :
               activeSingleFormat === "v2ray" ? "V2Ray b64 links profile" :
               activeSingleFormat === "links" ? "Plain Share links" : "JSON nodes list"}
           </span>
-          <a href="${baseSubUrl}" class="text-xs text-slate-400 hover:text-sky-400 underline font-medium transition">&larr; View all formats</a>
+          <a href="${baseSubUrl}" class="text-xs text-slate-400 hover:text-lime-400 underline font-medium transition">&larr; View all formats</a>
         </div>
         ` : `
-        <div class="flex flex-wrap border-b border-slate-800/80 gap-1 overflow-x-auto select-none scroller-hidden">
+        <div class="flex flex-wrap border-b border-slate-900 gap-1 overflow-x-auto select-none scroller-hidden">
           ${activeTabs.map((tab, idx) => {
             const isTabActive = tab.id === initialTab.id;
             const textClass = isTabActive 
-              ? "text-teal-400 border-b-2 border-teal-400 bg-slate-900/50" 
-              : "text-slate-400 border-b-2 border-transparent hover:text-slate-200";
+              ? "text-lime-400 border-lime-400/80 bg-lime-950/20 shadow-inner" 
+              : "text-slate-400 border-transparent hover:text-slate-200 hover:border-slate-800";
             return `
             <button 
               type="button" 
               id="tab-btn-${tab.id}"
               onclick="switchTab('tab-btn-${tab.id}', '${tab.contentId}')"
-              class="tab-btn px-4 py-2.5 text-xs font-bold ${textClass} rounded-t-xl transition whitespace-nowrap cursor-pointer"
+              class="tab-btn px-4 py-3 text-xs font-bold border-b-2 ${textClass} rounded-t-xl transition-all whitespace-nowrap cursor-pointer"
             >
               ${tab.label}
             </button>`;
@@ -456,25 +516,25 @@ export async function GET(
         `}
 
         <!-- Tab contents wrapper -->
-        <div class="relative bg-slate-950 rounded-2xl border border-slate-850 overflow-hidden">
+        <div class="relative bg-black rounded-2xl border border-slate-900 overflow-hidden">
           
           <!-- TAB 1: BASE64 FEED CONTENT -->
           <div id="tab-content-b64" class="tab-content ${b64DisplayClass}">
-            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
-              <span class="text-xs text-slate-400 font-mono font-medium">B64 V2Ray payload (${b64ValueRaw.length} chars)</span>
+            <div class="p-3.5 bg-slate-900/10 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-450 font-mono font-medium">B64 V2Ray payload (${b64ValueRaw.length} chars)</span>
               <button 
                 type="button" 
                 id="copy-btn-b64"
                 onclick="copyToClipboard('b64-body', 'copy-btn-b64', 'toast-notify')"
-                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+                class="flex items-center text-xs text-lime-400 hover:text-lime-350 font-bold font-mono cursor-pointer transition"
               >
-                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                Copy Config
+                <svg class="h-4 w-4 mr-1 inline" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Raw Payload
               </button>
             </div>
             <div id="b64-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
               <pre id="b64-body" data-full-text="${b64ValueRaw}" data-is-b64-encoded="false" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed font-semibold"></pre>
-              <div id="b64-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+              <div id="b64-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black to-transparent flex items-end justify-center pb-4 hidden select-none">
                 <button 
                   type="button" 
                   id="b64-body-expand-btn"
@@ -490,21 +550,21 @@ export async function GET(
 
           <!-- TAB 2: PLAIN CONFIGS CONTENT -->
           <div id="tab-content-plain" class="tab-content ${plainDisplayClass}">
-            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
-              <span class="text-xs text-slate-400 font-mono font-medium">Plain Links Payload (${linksOutputText.length} chars)</span>
+            <div class="p-3.5 bg-slate-900/10 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-450 font-mono font-medium">Plain Links Payload (${linksOutputText.length} chars)</span>
               <button 
                 type="button" 
                 id="copy-btn-plain"
                 onclick="copyToClipboard('plain-body', 'copy-btn-plain', 'toast-notify')"
-                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+                class="flex items-center text-xs text-lime-400 hover:text-lime-350 font-bold font-mono cursor-pointer transition"
               >
-                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                Copy Config
+                <svg class="h-4 w-4 mr-1 inline" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Raw Payload
               </button>
             </div>
             <div id="plain-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
               <pre id="plain-body" data-full-text="${Buffer.from(linksOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed"></pre>
-              <div id="plain-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+              <div id="plain-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black to-transparent flex items-end justify-center pb-4 hidden select-none">
                 <button 
                   type="button" 
                   id="plain-body-expand-btn"
@@ -520,21 +580,21 @@ export async function GET(
 
           <!-- TAB 3: SING-BOX CONFIG FILE -->
           <div id="tab-content-singbox" class="tab-content ${singboxDisplayClass}">
-            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
-              <span class="text-xs text-slate-400 font-mono font-medium">Sing-Box Client Profile JSON (${singBoxOutputText.length} chars)</span>
+            <div class="p-3.5 bg-slate-900/10 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-450 font-mono font-medium">Sing-Box Client Profile JSON (${singBoxOutputText.length} chars)</span>
               <button 
                 type="button" 
                 id="copy-btn-singbox"
                 onclick="copyToClipboard('singbox-body', 'copy-btn-singbox', 'toast-notify')"
-                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+                class="flex items-center text-xs text-lime-400 hover:text-lime-350 font-bold font-mono cursor-pointer transition"
               >
-                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                Copy Config
+                <svg class="h-4 w-4 mr-1 inline" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Raw Payload
               </button>
             </div>
             <div id="singbox-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
-              <pre id="singbox-body" data-full-text="${Buffer.from(singBoxOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed font-sans"></pre>
-              <div id="singbox-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+              <pre id="singbox-body" data-full-text="${Buffer.from(singBoxOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-450 break-all whitespace-pre-wrap select-text leading-relaxed font-sans"></pre>
+              <div id="singbox-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black to-transparent flex items-end justify-center pb-4 hidden select-none">
                 <button 
                   type="button" 
                   id="singbox-body-expand-btn"
@@ -550,21 +610,21 @@ export async function GET(
 
           <!-- TAB 4: CLASH CONFIG FILE -->
           <div id="tab-content-clash" class="tab-content ${clashDisplayClass}">
-            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
-              <span class="text-xs text-slate-400 font-mono font-medium">Clash Client Profile YAML (${clashOutputText.length} chars)</span>
+            <div class="p-3.5 bg-slate-900/10 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-450 font-mono font-medium">Clash Client Profile YAML (${clashOutputText.length} chars)</span>
               <button 
                 type="button" 
                 id="copy-btn-clash"
                 onclick="copyToClipboard('clash-body', 'copy-btn-clash', 'toast-notify')"
-                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+                class="flex items-center text-xs text-lime-400 hover:text-lime-350 font-bold font-mono cursor-pointer transition"
               >
-                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 5a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                Copy Config
+                <svg class="h-4 w-4 mr-1 inline" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Raw Payload
               </button>
             </div>
             <div id="clash-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
-              <pre id="clash-body" data-full-text="${Buffer.from(clashOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed font-sans"></pre>
-              <div id="clash-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+              <pre id="clash-body" data-full-text="${Buffer.from(clashOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-450 break-all whitespace-pre-wrap select-text leading-relaxed font-sans"></pre>
+              <div id="clash-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black to-transparent flex items-end justify-center pb-4 hidden select-none">
                 <button 
                   type="button" 
                   id="clash-body-expand-btn"
@@ -580,21 +640,21 @@ export async function GET(
 
           <!-- TAB 5: JSON NODES CONTENT -->
           <div id="tab-content-json" class="tab-content ${jsonDisplayClass}">
-            <div class="p-3.5 bg-slate-900/30 border-b border-slate-900/60 flex items-center justify-between select-none">
-              <span class="text-xs text-slate-400 font-mono font-medium">Nodes JSON Array Payload (${jsonOutputText.length} chars)</span>
+            <div class="p-3.5 bg-slate-900/10 border-b border-slate-900/60 flex items-center justify-between select-none">
+              <span class="text-xs text-slate-450 font-mono font-medium">Nodes JSON Array Payload (${jsonOutputText.length} chars)</span>
               <button 
                 type="button" 
                 id="copy-btn-json"
                 onclick="copyToClipboard('json-body', 'copy-btn-json', 'toast-notify')"
-                class="flex items-center text-xs text-teal-400 hover:text-teal-300 font-medium font-mono cursor-pointer transition"
+                class="flex items-center text-xs text-lime-400 hover:text-lime-350 font-bold font-mono cursor-pointer transition"
               >
-                <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
-                Copy Config
+                <svg class="h-4 w-4 mr-1 inline" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                Copy Raw Payload
               </button>
             </div>
             <div id="json-wrapper" class="p-5 max-h-72 overflow-y-auto relative transition-all duration-300">
-              <pre id="json-body" data-full-text="${Buffer.from(jsonOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-400 break-all whitespace-pre-wrap select-text leading-relaxed font-sans"></pre>
-              <div id="json-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-slate-950 to-transparent flex items-end justify-center pb-4 hidden select-none">
+              <pre id="json-body" data-full-text="${Buffer.from(jsonOutputText, "utf-8").toString("base64")}" data-is-b64-encoded="true" class="text-xs font-mono text-slate-450 break-all whitespace-pre-wrap select-text leading-relaxed font-sans"></pre>
+              <div id="json-body-overlay" class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black to-transparent flex items-end justify-center pb-4 hidden select-none">
                 <button 
                   type="button" 
                   id="json-body-expand-btn"
@@ -614,16 +674,16 @@ export async function GET(
     </div>
     
     <!-- Footer Section with Limoo attribution -->
-    <div class="text-center text-xs text-slate-600 font-mono py-4 select-none">
-      Powered by <span class="text-teal-400/80 font-semibold font-sans">Limoo Gateway Service</span> &bull; Security Verified &bull; 2026
+    <div class="text-center text-xs text-slate-605 font-mono py-4 select-none">
+      Powered by <span class="text-lime-400 font-semibold font-sans">🍋 Limoo Gateway Engine</span> &bull; Privacy Optimized &bull; 2026
     </div>
 
   </div>
 
   <!-- Toast alert template notification container -->
-  <div id="toast-notify" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 border border-slate-800 text-teal-400 px-5 py-3 rounded-2xl shadow-2xl flex items-center space-x-2.5 transition-all duration-300 opacity-0 translate-y-2 pointer-events-none z-50 select-none">
-    <svg class="h-4.5 w-4.5 text-teal-400" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-    <span class="text-xs font-semibold">Config payload copied to your clipboard!</span>
+  <div id="toast-notify" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-xl border border-lime-500/30 text-lime-400 px-6 py-3.5 rounded-2xl shadow-2xl flex items-center space-x-3 transition-all duration-300 opacity-0 translate-y-2 pointer-events-none z-50 select-none shadow-lime-500/10">
+    <span class="text-base">🍋</span>
+    <span class="text-xs font-bold font-sans">Limoo Payload copied successfully!</span>
   </div>
 
   <script>
@@ -649,7 +709,7 @@ export async function GET(
         const btn = document.getElementById(buttonId);
         if (btn) {
           const origHtml = btn.innerHTML;
-          btn.innerHTML = \`<svg class="h-4 w-4 mr-1 text-emerald-400 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"></path></svg><span>Copied!</span>\`;
+          btn.innerHTML = '<svg class="h-4 w-4 mr-1 text-lime-400 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"></path></svg><span>Copied!</span>';
           setTimeout(() => { btn.innerHTML = origHtml; }, 2000);
         }
       }).catch(err => {
@@ -675,7 +735,7 @@ export async function GET(
       
       const tabBtns = document.querySelectorAll(".tab-btn");
       tabBtns.forEach(btn => {
-        btn.classList.remove("text-teal-400", "border-teal-400", "bg-slate-900/50");
+        btn.classList.remove("text-lime-400", "border-lime-400/80", "bg-lime-950/20", "shadow-inner");
         btn.classList.add("text-slate-400", "border-transparent", "hover:text-slate-200");
       });
       
@@ -688,7 +748,7 @@ export async function GET(
       const clickedBtn = document.getElementById(btnId);
       if (clickedBtn) {
         clickedBtn.classList.remove("text-slate-400", "border-transparent", "hover:text-slate-200");
-        clickedBtn.classList.add("text-teal-400", "border-teal-400", "bg-slate-900/50");
+        clickedBtn.classList.add("text-lime-400", "border-lime-400/80", "bg-lime-950/20", "shadow-inner");
       }
     }
 
@@ -711,15 +771,15 @@ export async function GET(
         overlay.classList.add("hidden");
         wrapper.classList.remove("max-h-72");
         wrapper.classList.add("max-h-[500px]");
-        btn.innerHTML = \`<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5"></path></svg>Collapse Preview\`;
+        btn.innerHTML = '<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5"></path></svg>Collapse Preview';
       } else {
         const limit = 500;
-        body.innerText = fullText.substring(0, limit) + "\\n\\n... [TRUNCATED - PLEASE CLICK SHOW FULL OR USE COPY BUTTON]";
+        body.innerText = fullText.substring(0, limit) + "\n\n... [TRUNCATED - PLEASE CLICK SHOW FULL OR USE COPY BUTTON]";
         body.setAttribute("data-truncated", "true");
         overlay.classList.remove("hidden");
         wrapper.classList.remove("max-h-[500px]");
         wrapper.classList.add("max-h-72");
-        btn.innerHTML = \`<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>Show Full Config\`;
+        btn.innerHTML = '<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>Show Full Config';
       }
     }
 
