@@ -57,8 +57,11 @@ export async function POST(req: NextRequest) {
         const jsonConfigsEqual = (subData.jsonConfigs || "") === (existingSub.jsonConfigs || "");
         const dummyConfigsEqual = JSON.stringify(subData.dummyConfigs || []) === JSON.stringify(existingSub.dummyConfigs || []);
         const nameOverridesEqual = JSON.stringify(subData.nameOverrides || {}) === JSON.stringify(existingSub.nameOverrides || {});
+        const enabledFormatsEqual = JSON.stringify(subData.enabledFormats !== undefined ? subData.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]) === JSON.stringify(existingSub.enabledFormats !== undefined ? existingSub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]);
+        const customFormatPayloadsEqual = JSON.stringify(subData.customFormatPayloads || {}) === JSON.stringify(existingSub.customFormatPayloads || {});
+        const defaultFormatEqual = (subData.defaultFormat || "") === (existingSub.defaultFormat || "");
 
-        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual) {
+        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual) {
           // No changes detected! Avoid database update transaction completely.
           return NextResponse.json({ success: true, subscriptions: currentList, noChanges: true });
         }
@@ -74,6 +77,9 @@ export async function POST(req: NextRequest) {
             jsonConfigs: subData.jsonConfigs || "",
             dummyConfigs: subData.dummyConfigs || [],
             nameOverrides: subData.nameOverrides || {},
+            enabledFormats: subData.enabledFormats !== undefined ? subData.enabledFormats : ["links", "plain", "sing-box", "clash", "json"],
+            customFormatPayloads: subData.customFormatPayloads || {},
+            defaultFormat: subData.defaultFormat || "",
             updatedAt: new Date().toISOString(),
           };
         }
@@ -89,6 +95,9 @@ export async function POST(req: NextRequest) {
         jsonConfigs: subData.jsonConfigs || "",
         dummyConfigs: subData.dummyConfigs || [],
         nameOverrides: subData.nameOverrides || {},
+        enabledFormats: subData.enabledFormats !== undefined ? subData.enabledFormats : ["links", "plain", "sing-box", "clash", "json"],
+        customFormatPayloads: subData.customFormatPayloads || {},
+        defaultFormat: subData.defaultFormat || "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
