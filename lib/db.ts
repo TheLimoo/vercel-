@@ -190,3 +190,21 @@ export async function deleteSubAccessMetrics(subPath: string): Promise<void> {
   }
 }
 
+export async function deleteSingleAccessMetric(
+  subPath: string,
+  ip: string,
+  userAgent: string,
+  hwid: string
+): Promise<void> {
+  try {
+    await ensureTable();
+    const client = getClient();
+    await client.execute({
+      sql: "DELETE FROM sub_access_metrics WHERE sub_path = ? AND ip = ? AND user_agent = ? AND hwid = ?",
+      args: [subPath.toLowerCase(), ip, userAgent, hwid]
+    });
+  } catch (err) {
+    console.error("deleteSingleAccessMetric failed:", err);
+  }
+}
+

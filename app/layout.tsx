@@ -13,8 +13,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'V2Ray Custom Subscription Manager',
-  description: 'Manage V2Ray subscriptions, alter remark headers, and construct custom dummy metrics',
+  title: 'Limoo - V2Ray Custom Subscription Manager',
+  description: 'Manage V2Ray subscriptions under Limoo, alter remark headers, and construct custom dummy metrics',
 };
 
 export default function RootLayout({children}: {children: React.ReactNode}) {

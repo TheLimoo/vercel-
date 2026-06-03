@@ -200,6 +200,33 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeleteSingleMetric = async (item: any) => {
+    if (!editPath) return;
+    if (!confirm(`Are you sure you want to delete the metrics for user IP ${item.ip}?`)) {
+      return;
+    }
+
+    try {
+      const qs = new URLSearchParams({
+        path: editPath,
+        ip: item.ip,
+        ua: item.user_agent,
+        hwid: item.hwid
+      });
+      const res = await fetch(`/api/metrics?${qs.toString()}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        showToast("User metrics removed!");
+        setMetricsList(prev => prev.filter(m => !(m.ip === item.ip && m.user_agent === item.user_agent && m.hwid === item.hwid)));
+      } else {
+        showToast("Failed to remove user metrics", "error");
+      }
+    } catch {
+      showToast("Network error deleting metric", "error");
+    }
+  };
+
   const fetchSubscriptions = async () => {
     setIsRefreshing(true);
     try {
@@ -508,11 +535,11 @@ export default function Dashboard() {
             <div className="p-3 bg-sky-950 rounded-2xl border border-sky-800 text-sky-400 mb-4 shadow-lg">
               <Layers className="h-10 w-10 text-sky-400" />
             </div>
-            <h1 className="text-2xl font-bold text-white tracking-tight text-center">
-              V2Ray Subscription Organizer
+            <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-sky-400 tracking-tight text-center">
+              Limoo
             </h1>
-            <p className="text-slate-400 text-sm mt-1 text-center">
-              Secure Cloud Administration Gateway
+            <p className="text-slate-400 text-xs mt-1 text-center font-mono">
+              Subscription Management Service
             </p>
           </div>
 
@@ -534,9 +561,6 @@ export default function Dashboard() {
                   className="w-full block pl-10 pr-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 text-sm font-mono tracking-widest"
                 />
               </div>
-              <p className="text-slate-500 text-[11px] font-mono mt-2 leading-relaxed">
-                Hint: If not customized in environment variables under Vercel properties, use the fallback: <strong className="text-sky-400">admin123</strong>
-              </p>
             </div>
 
             {authError && (
@@ -624,8 +648,8 @@ export default function Dashboard() {
             <Layers className="h-6 w-6 text-sky-400" />
           </div>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
-              V2Ray Subscription Organizer
+            <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+              <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-sky-400">Limoo</span>
               <span className="text-[10px] font-mono leading-none bg-sky-500/10 text-sky-400 py-1 px-2.5 rounded-full border border-sky-400/20 font-bold">
                 Active Admin Panel
               </span>
@@ -1354,66 +1378,41 @@ export default function Dashboard() {
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {metricsList.map((item, idx) => {
-                      const hasHwid = item.hwid && item.hwid.trim() !== "";
                       return (
                         <div 
                           key={`${item.ip}-${idx}`}
-                          className="bg-slate-950/70 border border-slate-800/80 p-4 rounded-2xl flex flex-col justify-between hover:border-slate-700 transition duration-200 text-left"
+                          className="bg-slate-950/70 border border-slate-800/80 p-5 rounded-2xl flex flex-col justify-between hover:border-slate-700 transition duration-200 text-left relative"
                         >
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                             {/* Badges Header row */}
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="bg-sky-500/10 text-sky-400 border border-sky-400/20 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="bg-sky-500/10 text-sky-400 border border-sky-400/20 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">
                                 {item.device_type || "Generic client"}
                               </span>
-                              <span className="bg-slate-900 text-slate-300 border border-slate-800/80 text-[10px] font-mono px-2 py-0.5 rounded-full">
-                                IP: {item.ip || "Unknown IP"}
-                              </span>
-                              <span className="ml-auto text-[11px] font-mono text-slate-500 font-bold bg-slate-900 px-2.5 py-0.5 border border-slate-800/80 rounded-md">
-                                {item.access_count || 1} hits
-                              </span>
+                              
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSingleMetric(item)}
+                                className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-slate-900 border border-transparent hover:border-red-500/10 rounded-lg transition"
+                                title="Remove this consumer log entry"
+                              >
+                                <Trash className="h-3.5 w-3.5" />
+                              </button>
                             </div>
 
-                            {/* HWID Slot rendering */}
-                            <div className="bg-slate-900/60 border border-slate-850 p-2.5 rounded-xl text-xs flex flex-col space-y-1">
-                              <span className="text-[9px] font-mono text-slate-500 font-bold uppercase tracking-wider">
-                                Client Hardware ID (HWID)
-                              </span>
-                              {hasHwid ? (
-                                <div className="flex items-center justify-between gap-2">
-                                  <code className="text-amber-400 font-mono text-[11px] truncate max-w-[200px]" title={item.hwid}>
-                                    {item.hwid}
-                                  </code>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(item.hwid);
-                                      showToast("HWID copied to clipboard!");
-                                    }}
-                                    className="text-[10px] text-sky-400 hover:underline shrink-0"
-                                  >
-                                    Copy ID
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="italic text-slate-500 text-[11px]">
-                                  No hardware ID emitted (Fetched via standard subscriber URI)
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Raw user-agent expandable detail fallback */}
-                            <details className="group">
-                              <summary className="text-[10px] font-mono text-slate-500 cursor-pointer list-none flex items-center justify-between hover:text-slate-400 select-none">
-                                <span>🔍 Show Raw Headers / User-Agent</span>
-                                <span className="group-open:rotate-180 transition-transform">▼</span>
-                              </summary>
-                              <div className="mt-2 bg-slate-950 p-2 rounded border border-slate-850/50">
-                                <p className="text-[10px] text-slate-400 font-mono break-all leading-relaxed whitespace-pre-wrap">
-                                  {item.user_agent || "No User-Agent provided"}
-                                </p>
+                            {/* Client particulars and status */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-500">IP Address:</span>
+                                <span className="text-sm font-semibold text-white font-mono">{item.ip || "Unknown IP"}</span>
                               </div>
-                            </details>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-slate-500">Subscription Fetch Hits:</span>
+                                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+                                  {item.access_count || 1} requests
+                                </span>
+                              </div>
+                            </div>
                           </div>
 
                           {/* Timestamps footer */}

@@ -1,6 +1,6 @@
 {
-  "name": "V2Ray Subscription Organizer",
-  "description": "Manage and reorganize V2Ray subscription profiles. Dynamic remark auto-indexing, custom dummy announcement banners, Vercel KV storage support, and direct sharing client URLs.",
+  "name": "Limoo",
+  "description": "V2Ray Subscription Organizer & Remark Customizer with user metrics.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
