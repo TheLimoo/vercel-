@@ -712,20 +712,40 @@ export async function GET(
   </div>
 
   <script>
+    // Safe Base64 decoder supporting UTF-8 characters
     function decodeUtf8B64(str) {
+      if (!str) return "";
       try {
         return decodeURIComponent(escape(atob(str)));
       } catch (err) {
-        return atob(str);
+        try {
+          return atob(str);
+        } catch (e) {
+          return str;
+        }
       }
     }
 
+    // Modern Toast notification
+    function showToast(toastId) {
+      const toast = document.getElementById(toastId);
+      if (toast) {
+        toast.classList.remove("opacity-0", "translate-y-2", "pointer-events-none");
+        toast.classList.add("opacity-100", "translate-y-0");
+        setTimeout(() => {
+          toast.classList.remove("opacity-100", "translate-y-0");
+          toast.classList.add("opacity-0", "translate-y-2", "pointer-events-none");
+        }, 2500);
+      }
+    }
+
+    // Dynamic copyToClipboard helper
     function copyToClipboard(bodyId, buttonId, toastId) {
       const el = document.getElementById(bodyId);
       if (!el) return;
       
       const raw = el.getAttribute("data-full-text") || "";
-      const isEncoded = el.getAttribute("data-is-b64-encoded") === "true" || el.id !== "b64-body";
+      const isEncoded = el.getAttribute("data-is-b64-encoded") === "true";
       const fullText = isEncoded ? decodeUtf8B64(raw) : raw;
 
       navigator.clipboard.writeText(fullText).then(() => {
@@ -742,21 +762,13 @@ export async function GET(
       });
     }
 
-    function showToast(toastId) {
-      const toast = document.getElementById(toastId);
-      if (toast) {
-        toast.classList.remove("opacity-0", "translate-y-2", "pointer-events-none");
-        toast.classList.add("opacity-100", "translate-y-0");
-        setTimeout(() => {
-          toast.classList.remove("opacity-100", "translate-y-0");
-          toast.classList.add("opacity-0", "translate-y-2", "pointer-events-none");
-        }, 2200);
-      }
-    }
-
+    // Switch tab logic
     function switchTab(btnId, targetContentId) {
       const tabs = document.querySelectorAll(".tab-content");
-      tabs.forEach(tab => { tab.classList.add("hidden"); tab.classList.remove("block"); });
+      tabs.forEach(tab => {
+        tab.classList.add("hidden");
+        tab.classList.remove("block");
+      });
       
       const tabBtns = document.querySelectorAll(".tab-btn");
       tabBtns.forEach(btn => {
@@ -777,37 +789,29 @@ export async function GET(
       }
     }
 
+    // Toggle height of card container dynamically without replacing HTML texts
     function toggleTruncation(btnId, bodyId, wrapperId, overlayId) {
-      const body = document.getElementById(bodyId);
       const wrapper = document.getElementById(wrapperId);
       const overlay = document.getElementById(overlayId);
       const btn = document.getElementById(btnId);
-      if (!body || !wrapper || !overlay || !btn) return;
+      if (!wrapper || !overlay || !btn) return;
       
-      const raw = body.getAttribute("data-full-text") || "";
-      const isEncoded = body.getAttribute("data-is-b64-encoded") === "true" || bodyId !== "b64-body";
-      const fullText = isEncoded ? decodeUtf8B64(raw) : raw;
+      const isCollapsed = wrapper.classList.contains("max-h-72");
       
-      const isTruncated = body.getAttribute("data-truncated") === "true";
-      
-      if (isTruncated) {
-        body.innerText = fullText;
-        body.setAttribute("data-truncated", "false");
+      if (isCollapsed) {
+        wrapper.classList.remove("max-h-72", "overflow-hidden");
+        wrapper.classList.add("max-h-[1500px]", "overflow-y-auto");
         overlay.classList.add("hidden");
-        wrapper.classList.remove("max-h-72");
-        wrapper.classList.add("max-h-[500px]");
-        btn.innerHTML = '<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5"></path></svg>Collapse Preview';
+        btn.innerHTML = '<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5"></path></svg>Collapse Profile';
       } else {
-        const limit = 500;
-        body.innerText = fullText.substring(0, limit) + "\n\n... [TRUNCATED - PLEASE CLICK SHOW FULL OR USE COPY BUTTON]";
-        body.setAttribute("data-truncated", "true");
+        wrapper.classList.remove("max-h-[1500px]", "overflow-y-auto");
+        wrapper.classList.add("max-h-72", "overflow-hidden");
         overlay.classList.remove("hidden");
-        wrapper.classList.remove("max-h-[500px]");
-        wrapper.classList.add("max-h-72");
-        btn.innerHTML = '<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>Show Full Config';
+        btn.innerHTML = '<svg class="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"></path></svg>Show Full Profile';
       }
     }
 
+    // Self-contained page content loader which runs reliably
     document.addEventListener("DOMContentLoaded", () => {
       const elementIds = ["b64-body", "plain-body", "singbox-body", "clash-body", "json-body"];
       elementIds.forEach(id => {
@@ -815,25 +819,34 @@ export async function GET(
         if (!el) return;
         
         const raw = el.getAttribute("data-full-text") || "";
-        const isEncoded = el.getAttribute("data-is-b64-encoded") === "true" || id !== "b64-body";
-        const full = isEncoded ? decodeUtf8B64(raw) : raw;
+        const isEncoded = el.getAttribute("data-is-b64-encoded") === "true";
+        const fullContent = isEncoded ? decodeUtf8B64(raw) : raw;
         
-        const limitCh = 650;
+        // Safely assign full decoded content
+        el.textContent = fullContent;
         
-        if (full.length > limitCh) {
-          el.innerText = full.substring(0, 500) + "\\n\\n... [TRUNCATED - PLEASE CLICK SHOW FULL OR USE COPY BUTTON]";
-          el.setAttribute("data-truncated", "true");
+        // Calculate dimensions to toggle wrapper and expand buttons dynamically
+        setTimeout(() => {
+          const wrapperId = id.replace("-body", "-wrapper");
+          const overlayId = id.replace("-body", "-body-overlay");
+          const btnId = id.replace("-body", "-body-expand-btn");
           
-          const btnId = id + "-expand-btn";
-          const overlayId = id + "-overlay";
-          const btn = document.getElementById(btnId);
+          const wrapper = document.getElementById(wrapperId);
           const overlay = document.getElementById(overlayId);
-          if (btn) btn.classList.remove("hidden");
-          if (overlay) overlay.classList.remove("hidden");
-        } else {
-          el.innerText = full;
-          el.setAttribute("data-truncated", "false");
-        }
+          const btn = document.getElementById(btnId);
+          
+          if (wrapper && overlay && btn) {
+            if (el.scrollHeight > 280) {
+              wrapper.classList.add("max-h-72", "overflow-hidden");
+              overlay.classList.remove("hidden");
+              btn.classList.remove("hidden");
+            } else {
+              wrapper.classList.remove("max-h-72");
+              overlay.classList.add("hidden");
+              btn.classList.add("hidden");
+            }
+          }
+        }, 100);
       });
     });
   </script>
