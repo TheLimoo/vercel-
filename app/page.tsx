@@ -135,6 +135,7 @@ export default function Dashboard() {
   const [editNameOverrides, setEditNameOverrides] = useState<Record<string, string>>({});
   const [editEnabledFormats, setEditEnabledFormats] = useState<string[]>(["links", "plain", "sing-box", "clash", "json"]);
   const [editCustomFormatPayloads, setEditCustomFormatPayloads] = useState<Record<string, string>>({});
+  const [editDefaultFormat, setEditDefaultFormat] = useState<string>("");
 
   // Dummy config builder state
   const [newDummyName, setNewDummyName] = useState("");
@@ -208,6 +209,7 @@ export default function Dashboard() {
     setEditNameOverrides(sub.nameOverrides || {});
     setEditEnabledFormats(sub.enabledFormats !== undefined ? sub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]);
     setEditCustomFormatPayloads(sub.customFormatPayloads || {});
+    setEditDefaultFormat(sub.defaultFormat || "");
     
     if (activeTab === "metrics") {
       fetchAccessMetrics(sub.path);
@@ -562,8 +564,9 @@ export default function Dashboard() {
       const nameOverridesEqual = JSON.stringify(editNameOverrides || {}) === JSON.stringify(activeSub.nameOverrides || {});
       const enabledFormatsEqual = JSON.stringify(editEnabledFormats) === JSON.stringify(activeSub.enabledFormats !== undefined ? activeSub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]);
       const customFormatPayloadsEqual = JSON.stringify(editCustomFormatPayloads) === JSON.stringify(activeSub.customFormatPayloads || {});
+      const defaultFormatEqual = editDefaultFormat === (activeSub.defaultFormat || "");
 
-      if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual) {
+      if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual) {
         showToast("No changes detected. Configuration is up to date!", "info");
         return;
       }
@@ -580,6 +583,7 @@ export default function Dashboard() {
       nameOverrides: editNameOverrides,
       enabledFormats: editEnabledFormats,
       customFormatPayloads: editCustomFormatPayloads,
+      defaultFormat: editDefaultFormat,
     };
 
     try {
@@ -1562,6 +1566,34 @@ export default function Dashboard() {
                         </div>
                       );
                     })}
+                  </div>
+
+                  <div className="pt-4 border-t border-slate-800/80 space-y-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-base select-none">🎯</span>
+                      <label className="text-xs font-bold text-slate-350">
+                        Default Profile Format
+                      </label>
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-sans leading-normal">
+                      Select which format should be selected by default when the user loads the subscription gateway screen. If only 1 format is enabled, it automatically becomes the default and the only option shown.
+                    </p>
+                    <select
+                      value={editDefaultFormat}
+                      onChange={(e) => setEditDefaultFormat(e.target.value)}
+                      className="w-full max-w-sm block p-2.5 bg-slate-900 border border-slate-800 rounded-lg text-xs font-medium text-white focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+                    >
+                      <option value="">-- Dynamic Default (Automatic based on priority) --</option>
+                      {availableFormatsList.map((fmt) => (
+                        <option 
+                          key={fmt.key} 
+                          value={fmt.key} 
+                          disabled={!editEnabledFormats.includes(fmt.key)}
+                        >
+                          {fmt.label} {!editEnabledFormats.includes(fmt.key) ? "(Disabled)" : ""}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

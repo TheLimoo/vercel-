@@ -184,11 +184,15 @@ export async function GET(
       }
     }
 
-    // Fallback guess to the first enabled format if the guessed format is disabled
+    // Fallback guess to the default format or first enabled format if the guessed format is disabled
     if (!rawFormat && !enabledFormats.includes(format)) {
-      const firstEnabled = ["links", "plain", "sing-box", "clash", "json"].find(f => enabledFormats.includes(f));
-      if (firstEnabled) {
-        format = firstEnabled as any;
+      if (sub.defaultFormat && enabledFormats.includes(sub.defaultFormat)) {
+        format = sub.defaultFormat as any;
+      } else {
+        const firstEnabled = ["links", "plain", "sing-box", "clash", "json"].find(f => enabledFormats.includes(f));
+        if (firstEnabled) {
+          format = firstEnabled as any;
+        }
       }
     }
 
@@ -248,8 +252,24 @@ export async function GET(
         { key: "json", id: "json", label: "Nodes JSON Array", contentId: "tab-content-json" }
       ];
 
+      // Determine what format key is the default format.
+      // If only 1 format is checked, that one becomes the only default format.
+      // Otherwise, we look at sub.defaultFormat. If it is enabled, we use it.
+      // Otherwise, the first enabled format from available formats.
+      let chosenDefaultFormat = "links";
+      if (enabledFormats.length === 1) {
+        chosenDefaultFormat = enabledFormats[0];
+      } else if (sub.defaultFormat && enabledFormats.includes(sub.defaultFormat)) {
+        chosenDefaultFormat = sub.defaultFormat;
+      } else if (enabledFormats.length > 0) {
+        chosenDefaultFormat = enabledFormats[0];
+      }
+
       const activeTabs = formatTabConfig.filter(t => enabledFormats.includes(t.key));
-      const initialTab = activeTabs[0] || { id: "b64", contentId: "tab-content-b64" };
+      const defaultTabConfigEntry = formatTabConfig.find(t => t.key === chosenDefaultFormat);
+      const initialTab = defaultTabConfigEntry && enabledFormats.includes(chosenDefaultFormat)
+        ? defaultTabConfigEntry
+        : (activeTabs[0] || { id: "b64", key: "links", contentId: "tab-content-b64" });
 
       // Base64 V2Ray value
       const b64ValueRaw = Buffer.from(linksOutputText, "utf-8").toString("base64");
@@ -285,10 +305,15 @@ export async function GET(
 
       // Dynamically derive the active copy URL structure in the box
       let activeFormatSlug = activeSingleFormat || "";
-      if (!activeFormatSlug && activeTabs.length === 1) {
-        // If only 1 format is active, use its direct slug
-        const key = activeTabs[0].key;
-        activeFormatSlug = key === "links" ? "?format=links" : key === "plain" ? "?format=plain" : key;
+      if (!activeFormatSlug) {
+        const key = chosenDefaultFormat;
+        if (key === "links") {
+          activeFormatSlug = "?format=links";
+        } else if (key === "plain") {
+          activeFormatSlug = "?format=plain";
+        } else {
+          activeFormatSlug = key; // e.g., "sing-box", "clash", "json"
+        }
       }
       
       const activeUrl = activeFormatSlug 

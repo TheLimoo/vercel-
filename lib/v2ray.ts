@@ -16,6 +16,7 @@ export interface Subscription {
   nameOverrides?: Record<string, string>; // custom index-based naming overrides
   enabledFormats?: string[]; // list of active format keys
   customFormatPayloads?: Record<string, string>; // pasted code index overrides
+  defaultFormat?: string; // default pre-selected format
   createdAt: string;
   updatedAt: string;
 }
