@@ -858,14 +858,37 @@ export function generateProcessedSubscription(
   // Process item remarks and formats
   const processedConfigs = configsList.map((item, index) => {
     const hasOverrideName = sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "";
-    if (hasOverrideName) {
-      const remarkName = sub.nameOverrides![String(index)].trim();
+    const hasRemarksTemplate = sub.remarksTemplate && sub.remarksTemplate.trim() !== "";
 
+    let remarkName = "";
+    if (hasOverrideName) {
+      remarkName = sub.nameOverrides![String(index)].trim();
+    } else if (hasRemarksTemplate) {
+      const template = sub.remarksTemplate.trim();
+      const oneBasedIndex = index + 1;
+      remarkName = template.includes("*")
+        ? template.replaceAll("*", String(oneBasedIndex))
+        : `${template} ${oneBasedIndex}`;
+    }
+
+    if (remarkName !== "") {
       if (typeof item === "string") {
         return updateConfigRemark(item, remarkName);
       } else if (item && typeof item === "object") {
         const clonedObj = JSON.parse(JSON.stringify(item));
-        clonedObj.remarks = remarkName;
+        if (clonedObj.ps !== undefined) clonedObj.ps = remarkName;
+        if (clonedObj.remarks !== undefined) clonedObj.remarks = remarkName;
+        if (clonedObj.name !== undefined) clonedObj.name = remarkName;
+        if (clonedObj.tag !== undefined) clonedObj.tag = remarkName;
+        
+        // VMess decoded JSON
+        if (clonedObj.add && clonedObj.id) {
+          clonedObj.ps = remarkName;
+        }
+
+        if (clonedObj.remarks === undefined && clonedObj.ps === undefined && clonedObj.name === undefined && clonedObj.tag === undefined) {
+          clonedObj.remarks = remarkName;
+        }
         return clonedObj;
       }
     } else {
@@ -1002,35 +1025,15 @@ export function generateProcessedSubscription(
   }
 
   if (activeFormat === "json") {
-    const clashAdditional = mergedAdditional.map((link, idx) => {
-      const parsed = parseV2rayLink(link, idx + 10000);
-      if (!parsed) return null;
-      return {
-        remarks: parsed.name,
-        outbounds: [
-          {
-            protocol: parsed.protocol,
-            settings: {
-              vnext: [
-                {
-                  address: parsed.server,
-                  port: parsed.port,
-                  users: [
-                    {
-                      id: parsed.uuid || "",
-                      encryption: "none"
-                    }
-                  ]
-                }
-              ]
-            }
-          }
-        ],
-        tag: parsed.id
-      };
-    }).filter(Boolean);
+    // Return the exact configurations as entered, but with system renaming applied
+    const finalConfigs = [...processedConfigs];
+    mergedAdditional.forEach(link => {
+      if (link && typeof link === "string") {
+        finalConfigs.push(link);
+      }
+    });
 
-    return JSON.stringify([...clashAdditional, ...processedConfigs], null, 2);
+    return JSON.stringify(finalConfigs, null, 2);
   }
 
   // Fallback to "links" format

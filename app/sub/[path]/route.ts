@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getKV, logSubAccess } from "@/lib/db";
-import { Subscription, generateProcessedSubscription, extractConfigsList, parseV2rayLink, convertJsonConfigToShareLink } from "@/lib/v2ray";
+import { Subscription, generateProcessedSubscription, extractConfigsList, parseV2rayLink, convertJsonConfigToShareLink, updateConfigRemark } from "@/lib/v2ray";
 
 const SUBS_DB_KEY = "v2ray_subscriptions_list";
 
@@ -221,6 +221,19 @@ export async function GET(
       const renamedConfigsList: { name: string; url: string; server: string; protocol: string }[] = [];
       baseConfigs.forEach((item, index) => {
         const hasOverrideName = sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "";
+        const hasRemarksTemplate = sub.remarksTemplate && sub.remarksTemplate.trim() !== "";
+
+        let name = "";
+        if (hasOverrideName) {
+          name = sub.nameOverrides![String(index)].trim();
+        } else if (hasRemarksTemplate) {
+          const template = sub.remarksTemplate.trim();
+          const oneBasedIndex = index + 1;
+          name = template.includes("*")
+            ? template.replaceAll("*", String(oneBasedIndex))
+            : `${template} ${oneBasedIndex}`;
+        }
+
         let pLink = "";
         if (typeof item === "string") {
           pLink = item;
@@ -228,12 +241,12 @@ export async function GET(
           pLink = convertJsonConfigToShareLink(item);
         }
         if (pLink) {
-          const parsed = parseV2rayLink(pLink, index);
+          const updatedLink = name ? updateConfigRemark(pLink, name) : pLink;
+          const parsed = parseV2rayLink(updatedLink, index);
           if (parsed) {
-            const name = hasOverrideName ? sub.nameOverrides![String(index)].trim() : parsed.name;
             renamedConfigsList.push({
-              name,
-              url: pLink,
+              name: name || parsed.name,
+              url: updatedLink,
               server: parsed.server,
               protocol: parsed.protocol.toUpperCase(),
             });
@@ -494,30 +507,60 @@ export async function GET(
       });
     }
 
-    if (rawFormat === "plain") {
-      const plainOutput = generateProcessedSubscription(sub, "plain", fetchedAdditionalConfigs);
-      return new NextResponse(plainOutput, {
+    const activeFormatParam = (rawFormat || sub.defaultFormat || "links").toLowerCase();
+    const allowedFormats = ["links", "plain", "json", "sing-box", "clash"];
+    const activeFormat = allowedFormats.includes(activeFormatParam)
+      ? (activeFormatParam as "links" | "plain" | "json" | "sing-box" | "clash")
+      : "links";
+
+    const outputText = generateProcessedSubscription(sub, activeFormat, fetchedAdditionalConfigs);
+
+    if (activeFormat === "json" || activeFormat === "sing-box") {
+      return new NextResponse(outputText, {
         status: 200,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8",
+          "Content-Type": "application/json; charset=utf-8",
           "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0",
         },
       });
     }
 
-    // Default raw links or base64 links handling
+    if (activeFormat === "clash") {
+      return new NextResponse(outputText, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/yaml; charset=utf-8",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0",
+        },
+      });
+    }
+
+    if (activeFormat === "plain") {
+      return new NextResponse(outputText, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0",
+        },
+      });
+    }
+
+    // Default "links" fallback - check isRaw flag for base64 vs plain
     if (isRaw) {
-      return new NextResponse(linksOutputText, {
+      return new NextResponse(outputText, {
         status: 200,
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "Cache-Control": "no-store, no-cache, must-revalidate",
-          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0", 
+          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0",
         },
       });
     }
 
-    const base64Value = Buffer.from(linksOutputText, "utf-8").toString("base64");
+    const base64Value = Buffer.from(outputText, "utf-8").toString("base64");
 
     return new NextResponse(base64Value, {
       status: 200,
