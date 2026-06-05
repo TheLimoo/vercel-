@@ -24,7 +24,8 @@ import {
   User,
   Users,
   Lock,
-  Shield
+  Shield,
+  ArrowLeft
 } from "lucide-react";
 
 import { Subscription, DummyConfig, extractConfigsList, updateConfigRemark } from "@/lib/v2ray";
