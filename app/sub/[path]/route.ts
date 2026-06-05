@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getKV, logSubAccess } from "@/lib/db";
-import { Subscription, generateProcessedSubscription, extractConfigsList, parseV2rayLink } from "@/lib/v2ray";
+import { Subscription, generateProcessedSubscription, extractConfigsList, parseV2rayLink, convertJsonConfigToShareLink } from "@/lib/v2ray";
 
 const SUBS_DB_KEY = "v2ray_subscriptions_list";
 
@@ -122,10 +122,27 @@ export async function GET(
     }
 
     const currentList = await getKV<Subscription[]>(SUBS_DB_KEY) || [];
-    const sub = currentList.find(s => s.path.toLowerCase() === path.toLowerCase());
+    let sub = currentList.find(s => s.path.toLowerCase() === path.toLowerCase());
+    let isAlternativePath = false;
+
+    if (!sub) {
+      sub = currentList.find(s => s.alternativePath && s.alternativePath.toLowerCase() === path.toLowerCase());
+      if (sub) {
+        isAlternativePath = true;
+      }
+    }
 
     if (!sub) {
       return new NextResponse("Subscription configuration not found.", { status: 404 });
+    }
+
+    if (isAlternativePath) {
+      sub = {
+        ...sub,
+        path: sub.alternativePath || sub.path,
+        jsonConfigs: sub.alternativeJsonConfigs || "",
+        nameOverrides: {},
+      };
     }
 
     const { searchParams } = new URL(req.url);
@@ -204,11 +221,16 @@ export async function GET(
       const renamedConfigsList: { name: string; url: string; server: string; protocol: string }[] = [];
       baseConfigs.forEach((item, index) => {
         const hasOverrideName = sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "";
-        if (hasOverrideName) {
-          const name = sub.nameOverrides![String(index)].trim();
-          const pLink = typeof item === "string" ? item : "";
+        let pLink = "";
+        if (typeof item === "string") {
+          pLink = item;
+        } else if (item && typeof item === "object") {
+          pLink = convertJsonConfigToShareLink(item);
+        }
+        if (pLink) {
           const parsed = parseV2rayLink(pLink, index);
           if (parsed) {
+            const name = hasOverrideName ? sub.nameOverrides![String(index)].trim() : parsed.name;
             renamedConfigsList.push({
               name,
               url: pLink,

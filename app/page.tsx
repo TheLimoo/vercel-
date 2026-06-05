@@ -138,6 +138,8 @@ export default function Dashboard() {
   const [editCustomFormatPayloads, setEditCustomFormatPayloads] = useState<Record<string, string>>({});
   const [editDefaultFormat, setEditDefaultFormat] = useState<string>("");
   const [editAdditionalLink, setEditAdditionalLink] = useState("");
+  const [editAlternativePath, setEditAlternativePath] = useState("");
+  const [editAlternativeJsonConfigs, setEditAlternativeJsonConfigs] = useState("");
 
   // Dummy config builder state
   const [newDummyName, setNewDummyName] = useState("");
@@ -213,6 +215,8 @@ export default function Dashboard() {
     setEditCustomFormatPayloads(sub.customFormatPayloads || {});
     setEditDefaultFormat(sub.defaultFormat || "");
     setEditAdditionalLink(sub.additionalLink || "");
+    setEditAlternativePath(sub.alternativePath || "");
+    setEditAlternativeJsonConfigs(sub.alternativeJsonConfigs || "");
     
     if (activeTab === "metrics") {
       fetchAccessMetrics(sub.path);
@@ -295,6 +299,8 @@ export default function Dashboard() {
           setEditDummyConfigs(first.dummyConfigs || []);
           setEditNameOverrides(first.nameOverrides || {});
           setEditAdditionalLink(first.additionalLink || "");
+          setEditAlternativePath(first.alternativePath || "");
+          setEditAlternativeJsonConfigs(first.alternativeJsonConfigs || "");
         }
       }
     } catch (err: any) {
@@ -327,6 +333,8 @@ export default function Dashboard() {
             setEditDummyConfigs(first.dummyConfigs || []);
             setEditNameOverrides(first.nameOverrides || {});
             setEditAdditionalLink(first.additionalLink || "");
+            setEditAlternativePath(first.alternativePath || "");
+            setEditAlternativeJsonConfigs(first.alternativeJsonConfigs || "");
           }
         }
         setIsRefreshing(false);

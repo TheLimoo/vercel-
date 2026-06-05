@@ -835,21 +835,22 @@ export function generateProcessedSubscription(
   const activeFormat = format === "plain" ? "links" : format;
   const configsList = extractConfigsList(sub.jsonConfigs);
 
-  // Process item remarks and formats - ONLY include those that have been explicitly renamed
+  // Process item remarks and formats
   const processedConfigs = configsList.map((item, index) => {
-    // Only configs that have custom override/renaming should be processed!
     const hasOverrideName = sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "";
-    if (!hasOverrideName) {
-      return null;
-    }
-    const remarkName = sub.nameOverrides![String(index)].trim();
+    if (hasOverrideName) {
+      const remarkName = sub.nameOverrides![String(index)].trim();
 
-    if (typeof item === "string") {
-      return updateConfigRemark(item, remarkName);
-    } else if (item && typeof item === "object") {
-      const clonedObj = JSON.parse(JSON.stringify(item));
-      clonedObj.remarks = remarkName;
-      return clonedObj;
+      if (typeof item === "string") {
+        return updateConfigRemark(item, remarkName);
+      } else if (item && typeof item === "object") {
+        const clonedObj = JSON.parse(JSON.stringify(item));
+        clonedObj.remarks = remarkName;
+        return clonedObj;
+      }
+    } else {
+      // Keep unchanged
+      return item;
     }
     return null;
   }).filter(Boolean);
@@ -858,6 +859,11 @@ export function generateProcessedSubscription(
   const parsedProxies = processedConfigs.map((item, index) => {
     if (typeof item === "string") {
       return parseV2rayLink(item, index);
+    } else if (item && typeof item === "object") {
+      const converted = convertJsonConfigToShareLink(item);
+      if (converted) {
+        return parseV2rayLink(converted, index);
+      }
     }
     return null;
   }).filter(Boolean) as ParsedProxy[];

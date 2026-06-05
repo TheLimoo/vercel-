@@ -37,12 +37,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid path segment specified" }, { status: 400 });
     }
 
+    if (subData.alternativePath) {
+      subData.alternativePath = subData.alternativePath.trim().toLowerCase().replace(/[^a-z0-9-_]/g, "");
+    }
+
     const currentList = await getKV<Subscription[]>(SUBS_DB_KEY) || [];
 
-    // Check if path is already used by another sub
-    const pathConflict = currentList.find(sub => sub.path === subData.path && sub.id !== subData.id);
+    // Check if path or alternativePath is already used by another sub
+    const pathConflict = currentList.find(sub => 
+      (sub.path === subData.path || (sub.alternativePath && sub.alternativePath === subData.path)) && 
+      sub.id !== subData.id
+    );
     if (pathConflict) {
       return NextResponse.json({ error: `The custom path '${subData.path}' is already occupied by subscription '${pathConflict.name}'` }, { status: 400 });
+    }
+
+    if (subData.alternativePath) {
+      const altConflict = currentList.find(sub => 
+        (sub.path === subData.alternativePath || (sub.alternativePath && sub.alternativePath === subData.alternativePath)) && 
+        sub.id !== subData.id
+      );
+      if (altConflict) {
+        return NextResponse.json({ error: `The alternative path '${subData.alternativePath}' is already occupied by subscription '${altConflict.name}'` }, { status: 400 });
+      }
     }
 
     let updatedList: Subscription[];
@@ -61,8 +78,10 @@ export async function POST(req: NextRequest) {
         const customFormatPayloadsEqual = JSON.stringify(subData.customFormatPayloads || {}) === JSON.stringify(existingSub.customFormatPayloads || {});
         const defaultFormatEqual = (subData.defaultFormat || "") === (existingSub.defaultFormat || "");
         const additionalLinkEqual = (subData.additionalLink || "") === (existingSub.additionalLink || "");
+        const alternativePathEqual = (subData.alternativePath || "") === (existingSub.alternativePath || "");
+        const alternativeJsonConfigsEqual = (subData.alternativeJsonConfigs || "") === (existingSub.alternativeJsonConfigs || "");
 
-        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual) {
+        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual && alternativePathEqual && alternativeJsonConfigsEqual) {
           // No changes detected! Avoid database update transaction completely.
           return NextResponse.json({ success: true, subscriptions: currentList, noChanges: true });
         }
@@ -82,6 +101,8 @@ export async function POST(req: NextRequest) {
             customFormatPayloads: subData.customFormatPayloads || {},
             defaultFormat: subData.defaultFormat || "",
             additionalLink: subData.additionalLink || "",
+            alternativePath: subData.alternativePath || "",
+            alternativeJsonConfigs: subData.alternativeJsonConfigs || "",
             updatedAt: new Date().toISOString(),
           };
         }
@@ -101,6 +122,8 @@ export async function POST(req: NextRequest) {
         customFormatPayloads: subData.customFormatPayloads || {},
         defaultFormat: subData.defaultFormat || "",
         additionalLink: subData.additionalLink || "",
+        alternativePath: subData.alternativePath || "",
+        alternativeJsonConfigs: subData.alternativeJsonConfigs || "",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
