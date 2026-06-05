@@ -401,11 +401,11 @@ export async function GET(
     <!-- Plain Text URL Fallback link -->
     <div class="text-center select-none">
       <a 
-        href="/sub/${safePath}?format=links&raw=true" 
+        href="/sub/${safePath}?format=json&raw=true" 
         target="_blank"
         class="text-[11px] font-mono text-slate-500 hover:text-lime-400 underline transition-all"
       >
-        View RAW base64 connection feed profile &rarr;
+        View RAW JSON configurations profile &rarr;
       </a>
     </div>
 
