@@ -18,6 +18,8 @@ export interface Subscription {
   customFormatPayloads?: Record<string, string>; // pasted code index overrides
   defaultFormat?: string; // default pre-selected format
   additionalLink?: string; // alternative/additional proxy configs/links appended raw
+  alternativePath?: string; // alternative distinct route path
+  alternativeJsonConfigs?: string; // separate JSON config storage for alternative path
   createdAt: string;
   updatedAt: string;
 }
@@ -569,12 +571,20 @@ export function extractConfigsList(rawInput: string): (string | any)[] {
           if (item.remarks || item.outbounds || item.inbounds) {
             return [item];
           }
+          // Direct standard VMess decoded JSON object
+          if (item.add && item.id) {
+            return [item];
+          }
         }
         return [];
       });
     } else if (data && typeof data === "object") {
       // Standard single V2Ray object check
       if (data.remarks || data.outbounds || data.inbounds) {
+        return [data];
+      }
+      // Direct standard VMess decoded JSON object
+      if (data.add && data.id) {
         return [data];
       }
       // Traversal for other lists
@@ -602,6 +612,9 @@ export function extractConfigsList(rawInput: string): (string | any)[] {
               if (x.remarks || x.outbounds || x.inbounds) {
                 return [x];
               }
+              if (x.add && x.id) {
+                return [x];
+              }
             }
             return [];
           });
@@ -625,7 +638,14 @@ export function extractConfigsList(rawInput: string): (string | any)[] {
 export function convertJsonConfigToShareLink(obj: any): string {
   try {
     if (!obj || typeof obj !== "object") return "";
-    const remark = obj.remarks || "Config";
+
+    // Direct base64 standard VMess JSON object check!
+    if (obj.add && obj.id) {
+      const vmessB64 = Buffer.from(JSON.stringify(obj), "utf-8").toString("base64");
+      return `vmess://${vmessB64}`;
+    }
+
+    const remark = obj.remarks || obj.ps || "Config";
     
     const outbounds = obj.outbounds || [];
     const proxyOutbound = outbounds.find((o: any) => 

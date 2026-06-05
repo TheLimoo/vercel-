@@ -1223,6 +1223,44 @@ export default function Dashboard() {
                             <p className="text-xs text-slate-500 font-mono">Fill in a valid slug path structure above</p>
                           )}
                         </div>
+
+                        {editAlternativePath && (
+                          <div className="pt-3 border-t border-slate-800/80 mt-1">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] text-slate-400 font-mono tracking-wide uppercase font-semibold flex items-center gap-1">
+                                <span>🔗 Alternative Gateway Client Subscription Link</span>
+                              </span>
+                              <span className="text-[10px] text-amber-450 bg-amber-400/10 border border-amber-400/20 rounded px-2 py-0.5 font-bold font-mono">
+                                ALTERNATIVE
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 bg-slate-950 border border-slate-800 px-4 py-2.5 rounded-lg text-xs font-mono text-amber-400 truncate select-all font-semibold">
+                                {`${appOrigin}/sub/${editAlternativePath}#${encodeURIComponent(editName || "Alternative")}`}
+                              </div>
+                              
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(`${appOrigin}/sub/${editAlternativePath}#${encodeURIComponent(editName || "Alternative")}`, "alternative")}
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                                title="Copy alternative gateway subscription address"
+                              >
+                                {copiedLink === "alternative" ? <Check className="h-4 w-4 text-amber-450" /> : <Copy className="h-4 w-4" />}
+                              </button>
+
+                              <a
+                                href={`${appOrigin}/sub/${editAlternativePath}#${encodeURIComponent(editName || "Alternative")}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white rounded-lg transition"
+                                title="Inspect alternative client gateway in browser"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </div>
+                          </div>
+                        )}
                       </>
                     );
                   })()}
@@ -1283,14 +1321,14 @@ export default function Dashboard() {
                           Optionally specify custom name overrides for individual nodes after batch renaming is computed above.
                         </p>
                         
-                        <div className="border border-slate-800/80 rounded-xl overflow-hidden max-h-[300px] overflow-y-auto bg-slate-900/40">
-                          <table className="w-full text-left border-collapse">
+                        <div className="border border-slate-800/80 rounded-xl overflow-hidden max-h-[320px] overflow-y-auto overflow-x-auto bg-slate-900/40 w-full scrollbar-thin">
+                          <table className="w-full text-left border-collapse min-w-[680px]">
                             <thead>
-                              <tr className="bg-slate-950/95 font-mono text-[10px] text-slate-400 border-b border-slate-800 uppercase tracking-wider select-none sticky top-0 z-10">
+                              <tr className="bg-slate-950/95 font-mono text-[10px] text-zinc-400 border-b border-slate-800 uppercase tracking-wider select-none sticky top-0 z-10">
                                 <th className="py-2.5 px-3.5 w-16 text-center">Index</th>
-                                <th className="py-2.5 px-3">Original Remark</th>
-                                <th className="py-2.5 px-3">Batch Name</th>
-                                <th className="py-2.5 px-4 w-5/12">Custom Name Override</th>
+                                <th className="py-2.5 px-3 w-[200px]">Original Remark</th>
+                                <th className="py-2.5 px-3 w-[200px]">Batch Name</th>
+                                <th className="py-2.5 px-4">Custom Name Override</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-850/30">
@@ -1303,13 +1341,13 @@ export default function Dashboard() {
                                     <td className="py-2.5 px-3.5 text-center font-mono text-[11px] text-slate-500 font-bold">
                                       #{index + 1}
                                     </td>
-                                    <td className="py-2.5 px-3 text-xs text-slate-400 truncate max-w-[140px]" title={originalName}>
+                                    <td className="py-2.5 px-3 text-xs text-slate-400 truncate max-w-[200px]" title={originalName}>
                                       {originalName}
                                     </td>
-                                    <td className="py-2.5 px-3 text-xs text-slate-400 truncate max-w-[140px]" title={batchName}>
+                                    <td className="py-2.5 px-3 text-xs text-slate-400 truncate max-w-[200px]" title={batchName}>
                                       {batchName}
                                     </td>
-                                    <td className="py-2.5 px-4">
+                                    <td className="py-3 px-4">
                                       <input
                                         type="text"
                                         value={customOverride}
@@ -1329,6 +1367,9 @@ export default function Dashboard() {
                               })}
                             </tbody>
                           </table>
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-500 text-center sm:hidden pt-1">
+                          ↔️ Scroll table horizontally to view and edit overrides
                         </div>
                       </div>
                     )}
@@ -1418,6 +1459,64 @@ export default function Dashboard() {
                       placeholder="e.g. https://another.provider/sub/abc or ss://...#custom-node"
                       className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500 font-mono text-sky-305"
                     />
+                  </div>
+                </div>
+              </div>
+
+
+              {/* SECTION: 5. OPTIONAL ALTERNATIVE SUB ROUTE PATH & CONFIG */}
+              <div id="section_alternative_sub_config" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <Globe className="h-5 w-5 text-lime-400 shrink-0" />
+                  <h3 className="text-sm font-semibold text-white tracking-wide">
+                    5. Alternative Subscription Route & JSON Configs
+                  </h3>
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-xs text-slate-400 leading-relaxed font-sans">
+                    Configure a completely different sub path with custom JSON configurations under the exact same subscription entry. 
+                    This allows you to separate outbounds/nodes into a separate route (e.g., <code>/sub/alt-path</code> instead of <code>/sub/main-path</code>), 
+                    but manage them fully under the same admin dashboard entity.
+                  </p>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                        <span>🏷️ Alternative Sub Path</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 font-mono text-xs select-none">/sub/</span>
+                        <input
+                          id="input_alternative_path"
+                          type="text"
+                          value={editAlternativePath}
+                          onChange={(e) => setEditAlternativePath(e.target.value.toLowerCase().trim().replace(/[^a-z0-9-_]/g, ""))}
+                          placeholder="alternative-path-name"
+                          className="w-full px-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500 font-mono"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-sans">
+                        Only lowercase letters, numbers, dashes, and underscores are allowed. Keep it unique!
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center justify-between">
+                        <span>📝 Alternative Specific JSON Configs</span>
+                      </label>
+                      <textarea
+                        id="textarea_alternative_json_configs"
+                        rows={5}
+                        value={editAlternativeJsonConfigs}
+                        onChange={(e) => setEditAlternativeJsonConfigs(e.target.value)}
+                        placeholder="Paste subscription JSON hash/array or multi-line nodes link list..."
+                        className="w-full block p-3 bg-slate-900 border border-slate-800 rounded-xl text-amber-400 placeholder-slate-700 text-xs font-mono focus:outline-none focus:border-sky-500 leading-relaxed"
+                      />
+                      <p className="text-[11px] text-slate-500 font-sans">
+                        Detected: <strong className="text-lime-400 font-mono">{extractConfigsList(editAlternativeJsonConfigs).length}</strong> alternative configurations
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
