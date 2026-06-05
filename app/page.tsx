@@ -137,6 +137,7 @@ export default function Dashboard() {
   const [editEnabledFormats, setEditEnabledFormats] = useState<string[]>(["links", "plain", "sing-box", "clash", "json"]);
   const [editCustomFormatPayloads, setEditCustomFormatPayloads] = useState<Record<string, string>>({});
   const [editDefaultFormat, setEditDefaultFormat] = useState<string>("");
+  const [editTotalTrafficGb, setEditTotalTrafficGb] = useState<number>(1000);
   const [editAdditionalLink, setEditAdditionalLink] = useState("");
   const [editAlternativePath, setEditAlternativePath] = useState("");
   const [editAlternativeJsonConfigs, setEditAlternativeJsonConfigs] = useState("");
@@ -214,6 +215,7 @@ export default function Dashboard() {
     setEditEnabledFormats(sub.enabledFormats !== undefined ? sub.enabledFormats : ["links", "plain", "sing-box", "clash", "json"]);
     setEditCustomFormatPayloads(sub.customFormatPayloads || {});
     setEditDefaultFormat(sub.defaultFormat || "");
+    setEditTotalTrafficGb(sub.totalTrafficGb !== undefined && sub.totalTrafficGb !== null ? Number(sub.totalTrafficGb) : 1000);
     setEditAdditionalLink(sub.additionalLink || "");
     setEditAlternativePath(sub.alternativePath || "");
     setEditAlternativeJsonConfigs(sub.alternativeJsonConfigs || "");
@@ -579,8 +581,9 @@ export default function Dashboard() {
       const customFormatPayloadsEqual = JSON.stringify(editCustomFormatPayloads) === JSON.stringify(activeSub.customFormatPayloads || {});
       const defaultFormatEqual = editDefaultFormat === (activeSub.defaultFormat || "");
       const additionalLinkEqual = editAdditionalLink === (activeSub.additionalLink || "");
+      const totalTrafficGbEqual = editTotalTrafficGb === (activeSub.totalTrafficGb !== undefined && activeSub.totalTrafficGb !== null ? Number(activeSub.totalTrafficGb) : 1000);
 
-      if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual) {
+      if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual && totalTrafficGbEqual) {
         showToast("No changes detected. Configuration is up to date!", "info");
         return;
       }
@@ -598,6 +601,7 @@ export default function Dashboard() {
       enabledFormats: editEnabledFormats,
       customFormatPayloads: editCustomFormatPayloads,
       defaultFormat: editDefaultFormat,
+      totalTrafficGb: editTotalTrafficGb,
       additionalLink: editAdditionalLink,
     };
 
@@ -653,6 +657,7 @@ export default function Dashboard() {
             setEditJsonConfigs("");
             setEditDummyConfigs([]);
             setEditNameOverrides({});
+            setEditTotalTrafficGb(1000);
           }
         }
         showToast("Deleted subscription successfully!");
@@ -1141,7 +1146,7 @@ export default function Dashboard() {
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 font-mono">
                       Subscription Name
@@ -1172,6 +1177,30 @@ export default function Dashboard() {
                         placeholder="private-servers"
                         className="w-full pl-12 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500 font-mono text-emerald-400"
                       />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2 font-mono flex items-center justify-between">
+                      <span>Subscription Data Limit</span>
+                      <span className="text-[10px] text-lime-400 lowercase font-normal italic font-sans">(Adjustable Header)</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="input_sub_traffic_gb"
+                        type="number"
+                        min="1"
+                        value={editTotalTrafficGb || ""}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          setEditTotalTrafficGb(isNaN(val) ? 0 : Math.max(0, val));
+                        }}
+                        placeholder="1000"
+                        className="w-full pr-12 pl-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500 font-mono text-lime-400 font-semibold"
+                      />
+                      <span className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-xs text-slate-500 font-mono select-none pointer-events-none">
+                        GB
+                      </span>
                     </div>
                   </div>
                 </div>

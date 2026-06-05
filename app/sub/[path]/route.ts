@@ -481,6 +481,10 @@ export async function GET(
       });
     }
 
+    const trafficGb = (sub.totalTrafficGb !== undefined && sub.totalTrafficGb !== null) ? Number(sub.totalTrafficGb) : 1000;
+    const totalBytes = Math.round(trafficGb * 1024 * 1024 * 1024);
+    const userInfoHeader = `upload=0; download=0; total=${totalBytes}; expire=0`;
+
     const activeFormatParam = (rawFormat || sub.defaultFormat || "links").toLowerCase();
     const allowedFormats = ["links", "plain", "json", "sing-box", "clash"];
     const activeFormat = allowedFormats.includes(activeFormatParam)
@@ -495,7 +499,7 @@ export async function GET(
         headers: {
           "Content-Type": "application/json; charset=utf-8",
           "Cache-Control": "no-store, no-cache, must-revalidate",
-          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0",
+          "Subscription-Userinfo": userInfoHeader,
         },
       });
     }
@@ -506,7 +510,7 @@ export async function GET(
         headers: {
           "Content-Type": "text/yaml; charset=utf-8",
           "Cache-Control": "no-store, no-cache, must-revalidate",
-          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0",
+          "Subscription-Userinfo": userInfoHeader,
         },
       });
     }
@@ -517,7 +521,7 @@ export async function GET(
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "Cache-Control": "no-store, no-cache, must-revalidate",
-          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0",
+          "Subscription-Userinfo": userInfoHeader,
         },
       });
     }
@@ -529,7 +533,7 @@ export async function GET(
         headers: {
           "Content-Type": "text/plain; charset=utf-8",
           "Cache-Control": "no-store, no-cache, must-revalidate",
-          "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0",
+          "Subscription-Userinfo": userInfoHeader,
         },
       });
     }
@@ -541,7 +545,7 @@ export async function GET(
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-store, no-cache, must-revalidate",
-        "Subscription-Userinfo": "upload=0; download=0; total=1073741824000; expire=0",
+        "Subscription-Userinfo": userInfoHeader,
       },
     });
   } catch (err: any) {

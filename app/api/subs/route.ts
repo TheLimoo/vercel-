@@ -80,8 +80,9 @@ export async function POST(req: NextRequest) {
         const additionalLinkEqual = (subData.additionalLink || "") === (existingSub.additionalLink || "");
         const alternativePathEqual = (subData.alternativePath || "") === (existingSub.alternativePath || "");
         const alternativeJsonConfigsEqual = (subData.alternativeJsonConfigs || "") === (existingSub.alternativeJsonConfigs || "");
+        const totalTrafficGbEqual = (subData.totalTrafficGb === undefined ? 1000 : Number(subData.totalTrafficGb)) === (existingSub.totalTrafficGb === undefined ? 1000 : Number(existingSub.totalTrafficGb));
 
-        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual && alternativePathEqual && alternativeJsonConfigsEqual) {
+        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual && alternativePathEqual && alternativeJsonConfigsEqual && totalTrafficGbEqual) {
           // No changes detected! Avoid database update transaction completely.
           return NextResponse.json({ success: true, subscriptions: currentList, noChanges: true });
         }
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
             additionalLink: subData.additionalLink || "",
             alternativePath: subData.alternativePath || "",
             alternativeJsonConfigs: subData.alternativeJsonConfigs || "",
+            totalTrafficGb: subData.totalTrafficGb !== undefined && subData.totalTrafficGb !== null && !isNaN(Number(subData.totalTrafficGb)) ? Number(subData.totalTrafficGb) : 1000,
             updatedAt: new Date().toISOString(),
           };
         }
@@ -124,6 +126,7 @@ export async function POST(req: NextRequest) {
         additionalLink: subData.additionalLink || "",
         alternativePath: subData.alternativePath || "",
         alternativeJsonConfigs: subData.alternativeJsonConfigs || "",
+        totalTrafficGb: subData.totalTrafficGb !== undefined && subData.totalTrafficGb !== null && !isNaN(Number(subData.totalTrafficGb)) ? Number(subData.totalTrafficGb) : 1000,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

@@ -20,6 +20,7 @@ export interface Subscription {
   additionalLink?: string; // alternative/additional proxy configs/links appended raw
   alternativePath?: string; // alternative distinct route path
   alternativeJsonConfigs?: string; // separate JSON config storage for alternative path
+  totalTrafficGb?: number; // total traffic in GB (defaults to 1000 if not specified / empty)
   createdAt: string;
   updatedAt: string;
 }
