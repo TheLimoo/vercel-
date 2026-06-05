@@ -215,65 +215,19 @@ export async function GET(
       const subNameHash = `#${encodeURIComponent(sub.name || "Unnamed")}`;
       const activeUrl = baseSubUrl + subNameHash;
 
-      // Extract details about internal parsed and alternative extra links
+      // Extract details about configurations list for total calculations
       const baseConfigs = extractConfigsList(sub.jsonConfigs || "");
-      
-      const renamedConfigsList: { name: string; url: string; server: string; protocol: string }[] = [];
-      baseConfigs.forEach((item, index) => {
-        const hasOverrideName = sub.nameOverrides && sub.nameOverrides[String(index)] !== undefined && sub.nameOverrides[String(index)].trim() !== "";
-        const hasRemarksTemplate = sub.remarksTemplate && sub.remarksTemplate.trim() !== "";
-
-        let name = "";
-        if (hasOverrideName) {
-          name = sub.nameOverrides![String(index)].trim();
-        } else if (hasRemarksTemplate) {
-          const template = sub.remarksTemplate.trim();
-          const oneBasedIndex = index + 1;
-          name = template.includes("*")
-            ? template.replaceAll("*", String(oneBasedIndex))
-            : `${template} ${oneBasedIndex}`;
-        }
-
-        let pLink = "";
-        if (typeof item === "string") {
-          pLink = item;
-        } else if (item && typeof item === "object") {
-          pLink = convertJsonConfigToShareLink(item);
-        }
-        if (pLink) {
-          const updatedLink = name ? updateConfigRemark(pLink, name) : pLink;
-          const parsed = parseV2rayLink(updatedLink, index);
-          if (parsed) {
-            renamedConfigsList.push({
-              name: name || parsed.name,
-              url: updatedLink,
-              server: parsed.server,
-              protocol: parsed.protocol.toUpperCase(),
-            });
-          }
-        }
-      });
-
-      const alternativeConfigsList: { name: string; url: string; server: string; protocol: string }[] = [];
       const rawAlternatives = fetchedAdditionalConfigs.length > 0
         ? fetchedAdditionalConfigs
         : (sub.additionalLink && !sub.additionalLink.trim().startsWith("http")
             ? sub.additionalLink.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
             : []);
 
-      rawAlternatives.forEach((item, index) => {
-        const parsed = parseV2rayLink(item, index + 20000);
-        if (parsed) {
-          alternativeConfigsList.push({
-            name: parsed.name,
-            url: item,
-            server: parsed.server,
-            protocol: parsed.protocol.toUpperCase(),
-          });
-        }
-      });
+      const totalNodes = baseConfigs.length + rawAlternatives.length;
 
-      const totalNodes = renamedConfigsList.length + alternativeConfigsList.length;
+      // Generate the exact pretty JSON string with renamed remarks applied
+      const jsonOutputText = generateProcessedSubscription(sub, "json", fetchedAdditionalConfigs);
+      const jsonB64 = Buffer.from(jsonOutputText, "utf-8").toString("base64");
 
       const safeName = (sub.name || "Unnamed").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const safePath = (sub.path || "").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -304,6 +258,21 @@ export async function GET(
     .lime-glow {
       box-shadow: 0 0 40px -10px rgba(163, 230, 53, 0.15);
     }
+    /* Simple custom scrollbar styling */
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
   </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen relative flex flex-col items-center justify-start p-4 py-8 antialiased selection:bg-lime-500/30 selection:text-lime-300">
@@ -311,7 +280,7 @@ export async function GET(
   <!-- Glow orbs -->
   <div class="absolute inset-x-0 top-0 h-[400px] bg-[radial-gradient(circle_at_top,rgba(163,230,53,0.06),transparent_60%)] pointer-events-none"></div>
 
-  <div class="max-w-xl w-full space-y-6 relative z-10 my-auto">
+  <div class="max-w-2xl w-full space-y-6 relative z-10 my-auto">
     
     <!-- Header -->
     <div class="text-center space-y-3">
@@ -383,7 +352,7 @@ export async function GET(
           <button 
             type="button" 
             id="copy-sub-btn"
-            onclick="navigator.clipboard.writeText('${activeUrl}').then(() => { showToast(); });"
+            onclick="navigator.clipboard.writeText('${activeUrl}').then(() => { showToast('Subscription URL copied!'); });"
             class="flex items-center justify-center bg-lime-400 hover:bg-lime-300 active:bg-lime-500 text-slate-950 p-2.5 rounded-xl transition cursor-pointer shadow-md shadow-lime-500/5"
             title="Copy URL Address"
           >
@@ -392,69 +361,40 @@ export async function GET(
         </div>
       </div>
 
-      <!-- Renamed Configuration Nodes List -->
-      <div class="space-y-3 pt-3">
-        <div class="flex items-center gap-1 text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
-          <span class="inline-block w-1.5 h-3 bg-lime-400 rounded-sm"></span> 
-          <span>Renamed Nodes Feed (${renamedConfigsList.length})</span>
+      <!-- Copy Client Configurations JSON Viewport -->
+      <div class="space-y-3 pt-2">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
+            <span class="inline-block w-1.5 h-3 bg-lime-400 rounded-sm"></span> 
+            <span>Configurations File (JSON format)</span>
+          </div>
+          <button 
+            type="button" 
+            id="copy-json-btn"
+            onclick="navigator.clipboard.writeText(atob('${jsonB64}')).then(() => { showToast('JSON Configs copied!'); });"
+            class="flex items-center gap-1.5 bg-lime-500/10 hover:bg-lime-500/20 active:bg-lime-500/30 text-lime-400 border border-lime-500/20 px-30 py-1.5 px-3 rounded-xl text-[11px] font-bold font-mono transition cursor-pointer"
+            title="Copy entire JSON configs"
+          >
+            📋 Copy JSON
+          </button>
         </div>
 
-        ${renamedConfigsList.length === 0 ? `
-          <p class="text-xs text-slate-600 font-medium italic py-1">No custom renamed nodes found in this feed yet.</p>
-        ` : `
-          <div class="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-            ${renamedConfigsList.map((node) => `
-              <div class="flex items-center justify-between border border-slate-850 bg-slate-950 px-3.5 py-2.5 rounded-xl text-xs hover:border-slate-800 transition">
-                <div class="space-y-0.5 truncate pr-2">
-                  <div class="font-bold text-white truncate max-w-[170px]">${node.name}</div>
-                  <div class="text-[9px] font-mono text-slate-500 truncate max-w-[170px]">${node.server}</div>
-                </div>
-                <div class="flex items-center gap-1.5 shrink-0">
-                  <span class="text-[9px] font-mono text-slate-400 bg-slate-900 border border-slate-800 px-1.5 py-0.5 rounded">${node.protocol}</span>
-                  <button 
-                    onclick="navigator.clipboard.writeText('${node.url}').then(() => { showToast(); });"
-                    class="p-1 text-slate-500 hover:text-white transition"
-                    title="Copy connection link"
-                  >
-                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2"></path></svg>
-                  </button>
-                </div>
-              </div>
-            `).join("")}
+        <div class="relative rounded-2xl border border-slate-850 bg-slate-950 overflow-hidden lime-glow">
+          <!-- Window Header (Mac elements decoration) -->
+          <div class="flex items-center justify-between px-4 py-2.5 bg-slate-900 border-b border-slate-850 select-none">
+            <div class="flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+            </div>
+            <span class="text-[10px] font-mono text-slate-500 tracking-wider font-semibold">configs.json</span>
+            <div class="w-12"></div>
           </div>
-        `}
+          
+          <!-- Code Block with Client-Side Syntax Accent Colorizing -->
+          <pre class="p-4 overflow-auto max-h-[380px] text-[11px] font-mono leading-relaxed text-left break-all whitespace-pre-wrap select-all scrollbar-thin scrollbar-thumb-slate-800" style="word-break: break-all;"><code id="json-code" class="block text-slate-300"></code></pre>
+        </div>
       </div>
-
-      <!-- Injected Additional Alternative Links -->
-      ${alternativeConfigsList.length > 0 ? `
-        <div class="space-y-3 pt-3 border-t border-slate-850/60">
-          <div class="flex items-center gap-1 text-xs font-bold text-slate-400 uppercase tracking-wider font-mono text-amber-500">
-            <span class="inline-block w-1.5 h-3 bg-amber-500 rounded-sm"></span> 
-            <span>Alternative Admin Configs (${alternativeConfigsList.length})</span>
-          </div>
-
-          <div class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-            ${alternativeConfigsList.map((node) => `
-              <div class="flex items-center justify-between border border-amber-950/30 bg-amber-500/5 px-3.5 py-2.5 rounded-xl text-xs hover:border-amber-900/50 transition">
-                <div class="space-y-0.5 truncate pr-2">
-                  <div class="font-bold text-slate-300 truncate max-w-[170px]">${node.name}</div>
-                  <div class="text-[9px] font-mono text-slate-600 truncate max-w-[170px]">${node.server}</div>
-                </div>
-                <div class="flex items-center gap-1.5 shrink-0">
-                  <span class="text-[9px] font-mono text-amber-500/80 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">${node.protocol}</span>
-                  <button 
-                    onclick="navigator.clipboard.writeText('${node.url}').then(() => { showToast(); });"
-                    class="p-1 text-slate-500 hover:text-amber-500 transition"
-                    title="Copy alternative connection link"
-                  >
-                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2"></path></svg>
-                  </button>
-                </div>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      ` : ""}
 
     </div>
 
@@ -479,13 +419,17 @@ export async function GET(
   <!-- Toast alert notification -->
   <div id="toast-notify" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/95 backdrop-blur-xl border border-lime-500/30 text-lime-400 px-5 py-3 rounded-2xl shadow-xl flex items-center space-x-2.5 transition-all duration-300 opacity-0 translate-y-3 pointer-events-none z-50">
     <span class="text-sm">🍋</span>
-    <span class="text-xs font-bold">Successfully copied link to clipboard!</span>
+    <span class="text-xs font-bold toast-title">Successfully copied!</span>
   </div>
 
   <script>
-    function showToast() {
+    function showToast(msg) {
       const toast = document.getElementById("toast-notify");
       if (toast) {
+        const titleSpan = toast.querySelector(".toast-title");
+        if (titleSpan && msg) {
+          titleSpan.textContent = msg;
+        }
         toast.classList.remove("opacity-0", "translate-y-3", "pointer-events-none");
         toast.classList.add("opacity-100", "translate-y-0");
         setTimeout(() => {
@@ -493,6 +437,36 @@ export async function GET(
           toast.classList.add("opacity-0", "translate-y-3", "pointer-events-none");
         }, 2200);
       }
+    }
+
+    // High performance syntax colorization helper mapping to tailwind classes
+    function syntaxHighlight(jsonStr) {
+      jsonStr = jsonStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return jsonStr.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\\d+(?:\\.\\d*)?(?:[eE][+-]?\\d+)?)/g, function (match) {
+        var cls = 'text-amber-300';
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) {
+            cls = 'text-sky-450 font-semibold';
+          } else {
+            cls = 'text-teal-400';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'text-fuchsia-400 font-medium';
+        } else if (/null/.test(match)) {
+          cls = 'text-rose-400';
+        } else {
+          cls = 'text-violet-400';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+      });
+    }
+
+    try {
+      const rawB64 = '${jsonB64}';
+      const rawJson = atob(rawB64);
+      document.getElementById('json-code').innerHTML = syntaxHighlight(rawJson);
+    } catch (e) {
+      console.error('Failed to parse or render JSON code: ', e);
     }
   </script>
 </body>
