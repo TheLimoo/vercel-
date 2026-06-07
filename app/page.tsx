@@ -26,7 +26,8 @@ import {
   Lock,
   Shield,
   ArrowLeft,
-  Database
+  Database,
+  Activity
 } from "lucide-react";
 
 import { Subscription, DummyConfig, extractConfigsList, updateConfigRemark } from "@/lib/v2ray";
@@ -162,6 +163,20 @@ export default function Dashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  // States for universal node health checking configuration
+  const [pingSettings, setPingSettings] = useState<{
+    mode: "auto" | "manual";
+    intervalMinutes: number | "never";
+    lastPingAllTime?: string;
+    adminAlertFails?: string[];
+  }>({
+    mode: "auto",
+    intervalMinutes: 15,
+    adminAlertFails: [],
+  });
+  const [isPingingAll, setIsPingingAll] = useState(false);
+  const [isLoadingHealth, setIsLoadingHealth] = useState(false);
 
   // Tab State & Users connection tracking metrics
   const [activeTab, setActiveTab] = useState<"config" | "metrics" | "admins" | "db">("config");
@@ -367,6 +382,113 @@ export default function Dashboard() {
     }
   };
 
+  const fetchHealthSettings = async () => {
+    setIsLoadingHealth(true);
+    try {
+      const res = await fetch("/api/health");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setPingSettings(data.settings);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load health ping options:", err);
+    } finally {
+      setIsLoadingHealth(false);
+    }
+  };
+
+  const handlePingAllNow = async () => {
+    setIsPingingAll(true);
+    showToast("Starting real-time connection check across all nodes...", "info");
+    try {
+      const res = await fetch("/api/health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "pingAll" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.settings) {
+          setPingSettings(data.settings);
+          showToast("Real-time node port tests completed!", "success");
+          
+          // Re-load subscriptions to display the latest online/offline states of sub and its nodes!
+          const subsRes = await fetch("/api/subs");
+          if (subsRes.ok) {
+            const subsData = await subsRes.json();
+            setSubscriptions(subsData.subscriptions || []);
+            
+            // Re-select currently selected subscription to update its shown node states on the page
+            if (selectedSubId) {
+              const updatedCur = subsData.subscriptions.find((su: any) => su.id === selectedSubId);
+              if (updatedCur) {
+                handleSelectSubscription(updatedCur);
+              }
+            }
+          }
+        } else {
+          showToast(data.error || "Pinging failed", "error");
+        }
+      } else {
+        showToast("Access Denied or Connection Failure", "error");
+      }
+    } catch {
+      showToast("Network failure executing port pings", "error");
+    } finally {
+      setIsPingingAll(false);
+    }
+  };
+
+  const handleUpdatePingSettings = async (mode: "auto" | "manual", interval: number | "never") => {
+    try {
+      const res = await fetch("/api/health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, intervalMinutes: interval }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.settings) {
+          setPingSettings(data.settings);
+          showToast(`Successfully switched as ${mode.toUpperCase()} sub status updates!`, "success");
+        }
+      } else {
+        showToast("Failed to save universal ping settings", "error");
+      }
+    } catch {
+      showToast("Network failure saving ping settings", "error");
+    }
+  };
+
+  const handleToggleSubStatus = async (sub: Subscription) => {
+    if (currentUser?.level === 1) {
+      showToast("Access Denied: Read-only Viewer permissions cannot change status.", "error");
+      return;
+    }
+    const nextStatus = sub.status === "offline" ? "active" : "offline";
+    try {
+      const res = await fetch("/api/subs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...sub,
+          status: nextStatus,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSubscriptions(data.subscriptions);
+        showToast(`Toggled "${sub.name}" status to ${nextStatus.toUpperCase()}`, "success");
+      } else {
+        showToast(data.error || "Failed to toggle status", "error");
+      }
+    } catch {
+      showToast("Network error toggling status", "error");
+    }
+  };
+
   const checkAuthentication = async () => {
     try {
       const res = await fetch("/api/auth/check");
@@ -380,6 +502,7 @@ export default function Dashboard() {
         if (subRes.ok) {
           const subData = await subRes.json();
           setSubscriptions(subData.subscriptions || []);
+          fetchHealthSettings();
           if (subData.subscriptions && subData.subscriptions.length > 0 && !selectedSubId) {
             const first = subData.subscriptions[0];
             setSelectedSubId(first.id);
@@ -431,6 +554,7 @@ export default function Dashboard() {
         setPassword("");
         setUsername("");
         fetchSubscriptions();
+        fetchHealthSettings();
         showToast("Welcome to the Admin workspace!");
         // Refresh check to check password flags
         const checkRes = await fetch("/api/auth/check");
@@ -1175,6 +1299,17 @@ export default function Dashboard() {
             Define independent link profiles. Each receives its own private custom routing endpoint.
           </p>
 
+          {/* Critical admin alerts for fully offline subscriptions */}
+          {subscriptions.some((s) => s.status === "offline") && (
+            <div className="bg-red-500/10 border border-red-500/25 p-3.5 rounded-xl flex gap-3 text-left mb-3.5 animate-pulse duration-1000">
+              <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+              <div className="text-xs text-red-300 leading-relaxed">
+                <strong className="font-semibold block mb-0.5 text-red-400">🚨 Alert: Offline Subscriptions Devised</strong>
+                Some subscription lists failed connection checks. All nodes return offline. Click to investigate.
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2.5 flex-1 select-none overflow-y-auto max-h-[14rem] lg:max-h-none">
             {subscriptions.length === 0 ? (
               <div className="text-center py-6 border border-dashed border-slate-800 rounded-xl text-slate-500">
@@ -1191,6 +1326,7 @@ export default function Dashboard() {
               subscriptions.map((sub) => {
                 const isSelected = sub.id === selectedSubId;
                 const totalActiveCount = (sub.dummyConfigs?.length || 0) + extractConfigsList(sub.jsonConfigs || "").length;
+                const isOffline = sub.status === "offline";
                 return (
                   <div
                     key={sub.id}
@@ -1202,9 +1338,14 @@ export default function Dashboard() {
                         : "bg-slate-900/50 border-slate-800 hover:border-slate-700 text-slate-300"
                     }`}
                   >
-                    <div className="flex flex-col min-w-0 pr-6">
-                      <span className="text-sm font-semibold truncate group-hover:text-white transition">
-                        {sub.name}
+                    <div className="flex flex-col min-w-0 pr-16">
+                      <span className="text-sm font-semibold truncate group-hover:text-white transition flex items-center gap-2">
+                        {isOffline ? (
+                          <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse border border-rose-400 shrink-0" title="Offline (Zero ports responded)" />
+                        ) : (
+                          <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 border border-emerald-400 shrink-0" title="Active (Nodes are healthy)" />
+                        )}
+                        <span className="truncate">{sub.name}</span>
                       </span>
                       <span className="text-[11px] text-slate-400 truncate mt-1.5 font-mono flex items-center gap-1">
                         <Link className="h-3 w-3 inline text-slate-500" />
@@ -1213,6 +1354,14 @@ export default function Dashboard() {
                     </div>
 
                     <div className="absolute right-3.5 flex items-center gap-2">
+                      <span className={`text-[9px] font-mono font-bold tracking-wide border px-1.5 py-0.5 rounded uppercase ${
+                        isOffline 
+                          ? "bg-rose-950/30 text-rose-400 border-rose-900/60" 
+                          : "bg-emerald-950/30 text-emerald-400 border-emerald-900/60"
+                      }`}>
+                        {isOffline ? "FAIL" : "OK"}
+                      </span>
+                      
                       <span className="text-[10px] font-mono bg-slate-800 group-hover:bg-slate-950 px-2 py-0.5 rounded-md text-slate-400 border border-slate-700/50 group-hover:border-slate-700">
                         {totalActiveCount}
                       </span>
@@ -1376,6 +1525,209 @@ export default function Dashboard() {
 
               {activeTab === "config" ? (
                 <>
+                  {/* SECTION: OPERATOR NODE HEALTH & STATUS CONTROLS */}
+                  <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4 text-left">
+                      <div className="flex items-center gap-2">
+                        <Activity className="h-5 w-5 text-emerald-400 shrink-0 animate-pulse" />
+                        <div>
+                          <h3 className="text-sm font-semibold text-white tracking-wide flex items-center gap-2">
+                            <span>📡 Connection Health Diagnostics &amp; Universal Pinger</span>
+                          </h3>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Configure automatic backend port checkers, trigger manual scans, or manually override the sub status.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Trigger manual connection check globally across all configs */}
+                      <button
+                        type="button"
+                        disabled={isPingingAll}
+                        onClick={handlePingAllNow}
+                        className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 border border-transparent text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer shrink-0 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isPingingAll ? "animate-spin text-slate-950" : "text-slate-950"}`} />
+                        <span>{isPingingAll ? "Testing Ports..." : "Scan All Nodes Now"}</span>
+                      </button>
+                    </div>
+
+                    {/* Left: Universal Settings, Right: Selected Sub Status */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      
+                      {/* Sub-Card 1: Universal Configurations */}
+                      <div className="p-4 rounded-xl bg-slate-900 border border-slate-800/80 space-y-4 text-left">
+                        <span className="text-xs font-bold font-mono tracking-wider text-slate-400 uppercase flex items-center gap-1.5">
+                          ⚙️ Universal Settings
+                        </span>
+
+                        <div className="grid grid-cols-1 gap-3.5">
+                          {/* Auto/Manual Mode Selector */}
+                          <div>
+                            <label className="block text-[10px] uppercase font-mono font-bold text-slate-400 mb-1.5">
+                              Status Calculation Mode
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdatePingSettings("auto", pingSettings.intervalMinutes)}
+                                className={`px-2 py-1.5 rounded-lg text-xs font-bold border transition text-center cursor-pointer ${
+                                  pingSettings.mode === "auto"
+                                    ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400"
+                                    : "bg-slate-950/40 border-slate-850 text-slate-400 hover:text-slate-350"
+                                }`}
+                              >
+                                🔁 Auto Scan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleUpdatePingSettings("manual", pingSettings.intervalMinutes)}
+                                className={`px-2 py-1.5 rounded-lg text-xs font-bold border transition text-center cursor-pointer ${
+                                  pingSettings.mode === "manual"
+                                    ? "bg-amber-500/10 border-amber-500/50 text-amber-400"
+                                    : "bg-slate-950/40 border-slate-850 text-slate-400 hover:text-slate-350"
+                                }`}
+                              >
+                                🎯 Manual Toggle
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Ping Interval Selector */}
+                          <div>
+                            <label className="block text-[10px] uppercase font-mono font-bold text-slate-400 mb-1.5">
+                              Automatic Scan Time Interval
+                            </label>
+                            <select
+                              value={String(pingSettings.intervalMinutes)}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const parsed = val === "never" ? "never" : Number(val);
+                                handleUpdatePingSettings(pingSettings.mode, parsed as any);
+                              }}
+                              className="w-full px-3 py-2 bg-slate-950 border border-slate-850 rounded-lg text-white text-xs font-mono focus:outline-none focus:border-emerald-500 cursor-pointer"
+                            >
+                              <option value="5">Every 5 minutes</option>
+                              <option value="15">Every 15 minutes</option>
+                              <option value="30">Every 30 minutes</option>
+                              <option value="45">Every 45 minutes</option>
+                              <option value="60">Every 1 hour</option>
+                              <option value="120">Every 2 hours</option>
+                              <option value="never">Never ping automatically</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {pingSettings.lastPingAllTime && (
+                          <div className="text-[10px] text-slate-500 font-mono flex flex-wrap items-center gap-1.5 mt-2 pt-2 border-t border-slate-850">
+                            <span>Last system-wide health scan:</span>
+                            <span className="text-slate-300 font-semibold">{new Date(pingSettings.lastPingAllTime).toLocaleTimeString()}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Sub-Card 2: Selected Subscription Status Override & Scanned nodes */}
+                      {(() => {
+                        const activeSub = subscriptions.find((s) => s.id === selectedSubId);
+                        if (!activeSub) return null;
+                        
+                        const isOffline = activeSub.status === "offline";
+                        const subNodes = extractConfigsList(activeSub.jsonConfigs || "");
+                        const nodeCount = subNodes.length;
+
+                        return (
+                          <div className="p-4 rounded-xl bg-slate-900 border border-slate-800/80 space-y-3.5 text-left flex flex-col justify-between">
+                            <div>
+                              <span className="text-xs font-bold font-mono tracking-wider text-slate-400 uppercase block mb-3">
+                                📋 Subscription Status Override
+                              </span>
+
+                              <div className="flex items-center justify-between gap-2 border-b border-slate-800/60 pb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className={`inline-block w-2.5 h-2.5 rounded-full ${isOffline ? "bg-rose-500 animate-pulse" : "bg-emerald-500"}`} />
+                                  <span className="text-xs font-semibold text-slate-200">
+                                    Status: <span className={isOffline ? "text-rose-400 font-bold" : "text-emerald-400 font-bold"}>{isOffline ? "OFFLINE" : "ACTIVE"}</span>
+                                  </span>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleSubStatus(activeSub)}
+                                  className={`px-3 py-1.5 text-[10px] rounded-lg font-mono font-semibold uppercase tracking-wider border transition cursor-pointer select-none ${
+                                    isOffline
+                                      ? "bg-emerald-500/10 border-emerald-500/35 hover:bg-emerald-500/20 text-emerald-400 active:bg-emerald-500/30"
+                                      : "bg-rose-500/10 border-rose-500/35 hover:bg-rose-500/20 text-rose-400 active:bg-rose-500/30"
+                                  }`}
+                                >
+                                  Force {isOffline ? "Active" : "Offline"}
+                                </button>
+                              </div>
+
+                              {/* Node list connection diagnostics */}
+                              <div className="space-y-1.5 mt-3 max-h-[110px] overflow-y-auto pr-1">
+                                <span className="block text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-wider">
+                                  Active Configurations Check ({nodeCount})
+                                </span>
+                                {nodeCount === 0 ? (
+                                  <span className="text-[11px] text-slate-500 italic block mt-1">No outbound nodes registered to test.</span>
+                                ) : (
+                                  subNodes.map((node, nidx) => {
+                                    // Find host and port for display, safely
+                                    let targetStr = "Unparseable line / dummy Config";
+                                    const keyStr = String(nidx);
+                                    const nodeStatus = activeSub.nodeStatuses?.[keyStr] || "unknown";
+
+                                    // Safe extraction
+                                    try {
+                                      if (typeof node === "string") {
+                                        if (node.includes("://")) {
+                                          const cleanUrl = node.split("://")[1] || "";
+                                          targetStr = cleanUrl.split("?")[0].substring(0, 32);
+                                        } else {
+                                          targetStr = node.substring(0, 32);
+                                        }
+                                      } else if (typeof node === "object") {
+                                        targetStr = (node.add || node.server || node.host || "Config Node") + ":" + (node.port || "");
+                                      }
+                                    } catch (eee) {}
+
+                                    return (
+                                      <div key={nidx} className="flex items-center justify-between text-[11px] font-mono border-b border-slate-950/40 pb-1 mt-1 gap-2">
+                                        <span className="text-slate-400 truncate max-w-[65%]" title={typeof node === "string" ? node : JSON.stringify(node)}>
+                                          #{nidx + 1}: {targetStr}
+                                        </span>
+                                        
+                                        {nodeStatus === "offline" ? (
+                                          <span className="text-[9px] font-bold text-rose-500 shrink-0 bg-rose-950/20 px-1.5 py-0.5 rounded">
+                                            🔴 Offline (-1)
+                                          </span>
+                                        ) : nodeStatus === "active" ? (
+                                          <span className="text-[9px] font-bold text-emerald-500 shrink-0 bg-emerald-950/20 px-1.5 py-0.5 rounded">
+                                            🟢 Active
+                                          </span>
+                                        ) : (
+                                          <span className="text-[9px] font-bold text-slate-500 shrink-0 bg-slate-950 px-1.5 py-0.5 rounded">
+                                            ⚪ Waiting
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+                            
+                            {activeSub.lastPingedAt && (
+                              <p className="text-[9px] text-slate-500 font-mono pt-1 text-right">
+                                Checked: {new Date(activeSub.lastPingedAt).toLocaleTimeString()}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </div>
+
                   {/* SECTION: 1. CORE LINK ROUTING PROPERTIES */}
                   <div id="section_core_settings" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-3">

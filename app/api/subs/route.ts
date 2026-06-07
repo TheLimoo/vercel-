@@ -105,6 +105,9 @@ export async function POST(req: NextRequest) {
             alternativePath: subData.alternativePath || "",
             alternativeJsonConfigs: subData.alternativeJsonConfigs || "",
             totalTrafficGb: subData.totalTrafficGb !== undefined && subData.totalTrafficGb !== null && !isNaN(Number(subData.totalTrafficGb)) ? Number(subData.totalTrafficGb) : 1000,
+            status: (subData as any).status !== undefined ? (subData as any).status : existing.status,
+            nodeStatuses: (subData as any).nodeStatuses !== undefined ? (subData as any).nodeStatuses : existing.nodeStatuses,
+            lastPingedAt: (subData as any).lastPingedAt !== undefined ? (subData as any).lastPingedAt : existing.lastPingedAt,
             updatedAt: new Date().toISOString(),
           };
         }

@@ -21,6 +21,9 @@ export interface Subscription {
   alternativePath?: string; // alternative distinct route path
   alternativeJsonConfigs?: string; // separate JSON config storage for alternative path
   totalTrafficGb?: number; // total traffic in GB (defaults to 1000 if not specified / empty)
+  status?: "active" | "offline";
+  nodeStatuses?: Record<string, "active" | "offline">;
+  lastPingedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
