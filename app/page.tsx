@@ -27,7 +27,9 @@ import {
   Shield,
   ArrowLeft,
   Database,
-  Activity
+  Activity,
+  Menu,
+  X
 } from "lucide-react";
 
 import { Subscription, DummyConfig, extractConfigsList, updateConfigRemark } from "@/lib/v2ray";
@@ -178,8 +180,9 @@ export default function Dashboard() {
   const [isPingingAll, setIsPingingAll] = useState(false);
   const [isLoadingHealth, setIsLoadingHealth] = useState(false);
 
-  // Tab State & Users connection tracking metrics
-  const [activeTab, setActiveTab] = useState<"config" | "metrics" | "admins" | "db">("config");
+  // Tab State & Mobile Menu
+  const [activeTab, setActiveTab] = useState<"sub_setup" | "health" | "metrics" | "admins">("sub_setup");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [metricsList, setMetricsList] = useState<any[]>([]);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
 
@@ -195,14 +198,6 @@ export default function Dashboard() {
   const [selectedAdminUsername, setSelectedAdminUsername] = useState<string | null>(null);
   const [adminError, setAdminError] = useState("");
   const [isAdminSaving, setIsAdminSaving] = useState(false);
-
-  // States for Database management (Level 3 exclusive)
-  const [dbRows, setDbRows] = useState<{ key: string; value: string }[]>([]);
-  const [isLoadingDb, setIsLoadingDb] = useState(false);
-  const [editingDbKey, setEditingDbKey] = useState<string | null>(null);
-  const [editingDbValue, setEditingDbValue] = useState("");
-  const [isNewDbRow, setIsNewDbRow] = useState(false);
-  const [newDbKey, setNewDbKey] = useState("");
 
   // Root Host URL calculations computed cleanly during rendering
   const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
@@ -606,107 +601,19 @@ export default function Dashboard() {
     }
   };
 
-  // Database key/value operations and loaders
-  const fetchDbRows = async () => {
-    setIsLoadingDb(true);
-    try {
-      const res = await fetch("/api/db");
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success) {
-          setDbRows(data.rows || []);
-        } else {
-          showToast(data.error || "Failed to fetch database keys", "error");
-        }
-      } else {
-        showToast("Access Denied: Read-only Viewer permissions cannot access raw Database.", "error");
-      }
-    } catch (err) {
-      showToast("Network failure reading database configurations", "error");
-    } finally {
-      setIsLoadingDb(false);
-    }
-  };
-
-  const handleSaveDbRow = async (key: string, value: string, isCreate: boolean) => {
-    const trimmedKey = key.trim();
-    if (!trimmedKey) {
-      showToast("Database storage key cannot be blank", "error");
-      return;
-    }
-    try {
-      const res = await fetch("/api/db", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key: trimmedKey, value }),
-      });
-      if (res.ok) {
-        showToast(isCreate ? `Stored new database key "${trimmedKey}"` : `Updated database key "${trimmedKey}"`, "success");
-        setEditingDbKey(null);
-        setIsNewDbRow(false);
-        setNewDbKey("");
-        setEditingDbValue("");
-        fetchDbRows();
-        
-        // Auto-refresh main state if we modified key subscriptions
-        if (trimmedKey === "v2ray_subscriptions_list") {
-          const subsRes = await fetch("/api/subs");
-          if (subsRes.ok) {
-            const subsData = await subsRes.json();
-            setSubscriptions(subsData.subscriptions || []);
-          }
-        }
-      } else {
-        const errData = await res.json();
-        showToast(errData.error || "Could not write key/value to database", "error");
-      }
-    } catch (err) {
-      showToast("Network failure updating database records", "error");
-    }
-  };
-
-  const handleDeleteDbRow = async (key: string) => {
-    if (key === "v2ray_administrators_list") {
-      showToast("Warning: Deleting the administrators list key will purge all operator credentials!", "error");
-      if (!confirm("Are you absolutely sure you want to proceed? This will delete all operator settings including the admin account.")) {
-        return;
-      }
-    } else {
-      if (!confirm(`Are you sure you want to permanently delete raw database key "${key}"?`)) {
-        return;
-      }
-    }
-
-    try {
-      const res = await fetch(`/api/db?key=${encodeURIComponent(key)}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        showToast(`Successfully deleted database key "${key}"`, "success");
-        fetchDbRows();
-        if (key === "v2ray_subscriptions_list") {
-          setSubscriptions([]);
-        }
-      } else {
-        const errData = await res.json();
-        showToast(errData.error || "Failed to remove database key", "error");
-      }
-    } catch (err) {
-      showToast("Network failure removing database key", "error");
-    }
-  };
-
   useEffect(() => {
     if (activeTab === "admins" && currentUser?.level === 3) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchAdmins();
+      setTimeout(() => {
+        fetchAdmins();
+      }, 0);
     }
-    if (activeTab === "db" && currentUser?.level === 3) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchDbRows();
+    if (activeTab === "metrics" && editPath) {
+      setTimeout(() => {
+        fetchAccessMetrics(editPath);
+      }, 0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, currentUser]);
+  }, [activeTab, currentUser, editPath]);
 
   const handleDeleteAdmin = async (targetUser: string) => {
     if (!window.confirm(`Are you absolutely sure you want to completely delete administrator account '${targetUser}'?\n\nThis cannot be undone.`)) {
@@ -1399,133 +1306,266 @@ export default function Dashboard() {
               </p>
               <button
                 onClick={handleCreateNewSubscription}
-                className="mt-6 flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white font-medium rounded-xl transition shadow-lg"
+                className="mt-6 flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-white font-medium rounded-xl transition shadow-lg cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 <span>Add Custom Subscription</span>
               </button>
             </div>
           ) : (
-            <div className="max-w-4xl space-y-8 animate-fade-in duration-300">
+            <div className="w-full space-y-6 animate-fade-in duration-300">
               
-              {/* Header Details with action button */}
+              {/* Header Details with action button & mobile hamburger toggle */}
               <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-5">
-                <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight">
-                    Modify Subscription Target: <span className="text-sky-400">{editName || "Untitled"}</span>
-                  </h2>
-                  <p className="text-slate-400 text-xs mt-1">
-                    Created at {new Date().toLocaleDateString()}
-                  </p>
+                <div className="flex items-center gap-3">
+                  {/* Floating Hamburger Menubar on Mobile */}
+                  <button
+                    type="button"
+                    onClick={() => setMobileMenuOpen(true)}
+                    className="md:hidden flex items-center justify-center p-2.5 bg-slate-950 hover:bg-slate-900 border border-slate-800 rounded-xl text-slate-300 active:bg-slate-950 transition cursor-pointer"
+                    title="Open Navigation Drawer"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+                  <div>
+                    <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">
+                      Modify Subscription Target: <span className="text-sky-400">{editName || "Untitled"}</span>
+                    </h2>
+                    <p className="text-slate-400 text-xs mt-1">
+                      Created at {new Date().toLocaleDateString()}
+                    </p>
+                  </div>
                 </div>
 
-                <button
-                  id="save_sub_top_btn"
-                  onClick={handleSaveSubscription}
-                  disabled={isSaving}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 hover:bg-teal-400 active:bg-teal-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-semibold rounded-xl text-sm transition-all shadow-md focus:outline-none"
-                >
-                  {isSaving ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin text-white" />
-                      <span>Saving Changes...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 text-white" />
-                      <span>Commit Changes</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Tab Selector Buttons */}
-              <div className="flex border-b border-slate-800 gap-2 overflow-x-auto scroller-hidden">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("config")}
-                  className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all relative ${
-                    activeTab === "config"
-                      ? "border-sky-500 text-sky-400 bg-sky-500/5 font-bold"
-                      : "border-transparent text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  <Layers className="h-4 w-4" />
-                  <span>Config Settings</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("metrics");
-                    if (editPath) {
-                      fetchAccessMetrics(editPath);
-                    }
-                  }}
-                  className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all relative ${
-                    activeTab === "metrics"
-                      ? "border-sky-500 text-sky-400 bg-sky-500/5 font-bold"
-                      : "border-transparent text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  <Globe className="h-4 w-4" />
-                  <span>Users & Device Metrics</span>
-                  {metricsList.length > 0 && (
-                    <span className="bg-sky-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold">
-                      {metricsList.length}
-                    </span>
-                  )}
-                </button>
-
-                {currentUser?.level === 3 && (
+                <div className="flex items-center gap-2">
                   <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("admins");
-                      fetchAdmins();
-                    }}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all relative ${
-                      activeTab === "admins"
-                        ? "border-amber-500 text-amber-400 bg-amber-500/5 font-bold"
-                        : "border-transparent text-slate-400 hover:text-slate-200"
-                    }`}
+                    id="save_sub_top_btn"
+                    onClick={handleSaveSubscription}
+                    disabled={isSaving}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-teal-500 hover:bg-teal-400 active:bg-teal-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-semibold rounded-xl text-xs sm:text-sm transition-all shadow-md focus:outline-none cursor-pointer"
                   >
-                    <Users className="h-4 w-4" />
-                    <span>Admins & Permissions</span>
-                    {adminsList.length > 0 && (
-                      <span className="bg-amber-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold">
-                        {adminsList.length}
-                      </span>
+                    {isSaving ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin text-white" />
+                        <span>Saving Changes...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 text-white" />
+                        <span>Commit Changes</span>
+                      </>
                     )}
                   </button>
-                )}
-
-                {currentUser?.level === 3 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTab("db");
-                      fetchDbRows();
-                    }}
-                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all relative ${
-                      activeTab === "db"
-                        ? "border-emerald-500 text-emerald-400 bg-emerald-500/5 font-bold"
-                        : "border-transparent text-slate-400 hover:text-slate-200"
-                    }`}
-                  >
-                    <Database className="h-4 w-4" />
-                    <span>Database Manager</span>
-                    {dbRows.length > 0 && (
-                      <span className="bg-emerald-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold">
-                        {dbRows.length}
-                      </span>
-                    )}
-                  </button>
-                )}
+                </div>
               </div>
 
-              {activeTab === "config" ? (
-                <>
-                  {/* SECTION: OPERATOR NODE HEALTH & STATUS CONTROLS */}
+              {/* Grid workspace system */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                
+                {/* SIDEBAR NAVIGATION (Desktop panel) */}
+                <div className="hidden md:flex md:col-span-3 flex-col bg-slate-950 border border-slate-800/80 p-4 rounded-2xl space-y-1.5 shadow-xl select-none">
+                  <div className="px-3 pb-3 mb-2 border-b border-slate-900 text-[10px] font-bold uppercase font-mono tracking-wider text-slate-500">
+                    📂 Workspace Options
+                  </div>
+                  
+                  {/* Tab 1: Subscription Setup */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("sub_setup")}
+                    className={`flex items-center gap-3 px-3.5 py-3.5 text-xs font-bold rounded-xl transition-all border text-left cursor-pointer ${
+                      activeTab === "sub_setup"
+                        ? "bg-sky-500/10 border-sky-500/30 text-sky-400 shadow-md"
+                        : "bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    <Layers className="h-4 w-4 shrink-0" />
+                    <span className="font-sans leading-none">Subscription Setup</span>
+                  </button>
+
+                  {/* Tab 2: Health Diagnostics */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("health")}
+                    className={`flex items-center gap-3 px-3.5 py-3.5 text-xs font-bold rounded-xl transition-all border text-left cursor-pointer ${
+                      activeTab === "health"
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 shadow-md"
+                        : "bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    <Activity className="h-4 w-4 shrink-0" />
+                    <span className="font-sans leading-none">Health Diagnostics</span>
+                  </button>
+
+                  {/* Tab 3: Usage Metrics */}
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("metrics")}
+                    className={`flex items-center gap-3 px-3.5 py-3.5 text-xs font-bold rounded-xl transition-all border text-left cursor-pointer ${
+                      activeTab === "metrics"
+                        ? "bg-teal-500/10 border-teal-500/30 text-teal-400 shadow-md"
+                        : "bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                    }`}
+                  >
+                    <Globe className="h-4 w-4 shrink-0" />
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-sans leading-none">Access &amp; Metrics</span>
+                      {metricsList.length > 0 && (
+                        <span className="bg-sky-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1 shrink-0">
+                          {metricsList.length}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+
+                  {/* Tab 4: Admins & Permissions */}
+                  {currentUser?.level === 3 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab("admins");
+                        fetchAdmins();
+                      }}
+                      className={`flex items-center gap-3 px-3.5 py-3.5 text-xs font-bold rounded-xl transition-all border text-left cursor-pointer ${
+                        activeTab === "admins"
+                          ? "bg-amber-500/10 border-amber-500/30 text-amber-400 shadow-md"
+                          : "bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+                      }`}
+                    >
+                      <Users className="h-4 w-4 shrink-0" />
+                      <div className="flex items-center justify-between w-full font-sans">
+                        <span className="font-sans leading-none">Admins &amp; Roles</span>
+                        {adminsList.length > 0 && (
+                          <span className="bg-amber-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1 shrink-0">
+                            {adminsList.length}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  )}
+                </div>
+
+                {/* MOBILE FLOATING DRAWER */}
+                {mobileMenuOpen && (
+                  <div className="fixed inset-0 z-50 flex md:hidden bg-slate-950/80 backdrop-blur-md animate-fade-in duration-200">
+                    <div className="w-4/5 max-w-xs bg-slate-900 border-r border-slate-850 p-6 flex flex-col justify-between shadow-2xl relative">
+                      <button
+                        type="button"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="absolute right-4 top-4 p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-400 hover:text-white active:bg-slate-900 duration-150 cursor-pointer"
+                        title="Close Options Menu"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+
+                      <div className="space-y-6 pt-6 text-left">
+                        <div>
+                          <div className="text-xs uppercase font-mono font-bold text-slate-500 tracking-wider mb-2">
+                            📱 Workspaces
+                          </div>
+                          <div className="h-0.5 w-8 bg-sky-500 rounded-full" />
+                        </div>
+
+                        <div className="space-y-2 select-none">
+                          {/* Tab 1: Subscription Setup */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab("sub_setup");
+                              setMobileMenuOpen(false);
+                            }}
+                            className={`flex items-center gap-3.5 w-full px-4 py-4 text-xs font-bold rounded-xl border text-left cursor-pointer transition ${
+                              activeTab === "sub_setup"
+                                ? "bg-sky-500/10 border-sky-500/30 text-sky-400 font-bold"
+                                : "bg-transparent border-transparent text-slate-400 hover:bg-slate-950/45"
+                            }`}
+                          >
+                            <Layers className="h-4.5 w-4.5 shrink-0 text-sky-400" />
+                            <span>Subscription Setup</span>
+                          </button>
+
+                          {/* Tab 2: Health Diagnostics */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab("health");
+                              setMobileMenuOpen(false);
+                            }}
+                            className={`flex items-center gap-3.5 w-full px-4 py-4 text-xs font-bold rounded-xl border text-left cursor-pointer transition ${
+                              activeTab === "health"
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-bold"
+                                : "bg-transparent border-transparent text-slate-400 hover:bg-slate-950/45"
+                            }`}
+                          >
+                            <Activity className="h-4.5 w-4.5 shrink-0 text-emerald-400" />
+                            <span>Health Diagnostics</span>
+                          </button>
+
+                          {/* Tab 3: Usage Metrics */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveTab("metrics");
+                              setMobileMenuOpen(false);
+                            }}
+                            className={`flex items-center gap-3.5 w-full px-4 py-4 text-xs font-bold rounded-xl border text-left cursor-pointer transition ${
+                              activeTab === "metrics"
+                                ? "bg-teal-500/10 border-teal-500/30 text-teal-400 font-bold"
+                                : "bg-transparent border-transparent text-slate-400 hover:bg-slate-950/45"
+                            }`}
+                          >
+                            <Globe className="h-4.5 w-4.5 shrink-0 text-teal-400" />
+                            <div className="flex justify-between items-center w-full">
+                              <span>Access &amp; Metrics</span>
+                              {metricsList.length > 0 && (
+                                <span className="bg-sky-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1">
+                                  {metricsList.length}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+
+                          {/* Tab 4: Admins & Permissions */}
+                          {currentUser?.level === 3 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveTab("admins");
+                                fetchAdmins();
+                                setMobileMenuOpen(false);
+                              }}
+                              className={`flex items-center gap-3.5 w-full px-4 py-4 text-xs font-bold rounded-xl border text-left cursor-pointer transition ${
+                                activeTab === "admins"
+                                  ? "bg-amber-500/10 border-amber-500/30 text-amber-400 font-bold"
+                                  : "bg-transparent border-transparent text-slate-400 hover:bg-slate-950/45"
+                              }`}
+                            >
+                              <Users className="h-4.5 w-4.5 shrink-0 text-amber-400" />
+                              <div className="flex justify-between items-center w-full">
+                                <span>Admins &amp; Roles</span>
+                                {adminsList.length > 0 && (
+                                  <span className="bg-amber-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1">
+                                    {adminsList.length}
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-6 border-t border-slate-850 text-slate-500 text-[10px] font-mono select-none text-left">
+                        Logged in as: <strong className="text-slate-300">@{currentUser?.username}</strong>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ACTIVE PANEL CONTENT WRAPPER */}
+                <div id="workspace_active_panel" className="col-span-12 md:col-span-9 space-y-6">
+
+                  {activeTab === "health" ? (
+                    <div className="space-y-6">
+                      {/* SECTION: OPERATOR NODE HEALTH & STATUS CONTROLS */}
                   <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4 text-left">
                       <div className="flex items-center gap-2">
@@ -1727,8 +1767,10 @@ export default function Dashboard() {
                       })()}
                     </div>
                   </div>
-
-                  {/* SECTION: 1. CORE LINK ROUTING PROPERTIES */}
+                    </div>
+                  ) : activeTab === "sub_setup" ? (
+                    <div className="space-y-6 animate-fade-in duration-300 text-left">
+                      {/* SECTION: 1. CORE LINK ROUTING PROPERTIES */}
                   <div id="section_core_settings" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
                   <Globe className="h-5 w-5 text-sky-400 shrink-0" />
@@ -2159,7 +2201,7 @@ export default function Dashboard() {
                   id="save_sub_bottom_btn"
                   onClick={handleSaveSubscription}
                   disabled={isSaving}
-                  className="flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 active:bg-teal-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl text-sm transition-all shadow-xl"
+                  className="flex items-center gap-2 px-6 py-3 bg-teal-500 hover:bg-teal-400 active:bg-teal-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-bold rounded-xl text-sm transition-all shadow-xl cursor-pointer"
                 >
                   {isSaving ? (
                     <>
@@ -2175,8 +2217,8 @@ export default function Dashboard() {
                 </button>
               </div>
 
-            </>
-          ) : activeTab === "metrics" ? (
+                    </div>
+                  ) : activeTab === "metrics" ? (
             <div className="space-y-6 pb-12 animate-fade-in duration-300">
               {/* Header row inside tab */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950 p-5 rounded-2xl border border-slate-800">
@@ -2523,211 +2565,11 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="space-y-6 pb-12 animate-fade-in duration-300 text-left">
-              {/* DATABASE MANAGER HEADING CARD */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950 p-5 rounded-2xl border border-slate-800">
-                <div>
-                  <h3 className="text-base font-semibold text-white tracking-tight flex items-center gap-2">
-                    <Database className="h-5 w-5 text-emerald-400" />
-                    <span>🗄️ Database Manager &amp; Simple Editor</span>
-                  </h3>
-                  <p className="text-slate-400 text-xs mt-1">
-                    Direct access to the SQLite key-value database. View or safely prune legacy configuration states and custom variables.
-                  </p>
-                </div>
+          ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsNewDbRow(true);
-                    setEditingDbKey("custom_prop_" + Math.random().toString(36).substring(2, 7));
-                    setEditingDbValue("");
-                    setNewDbKey("");
-                  }}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer"
-                >
-                  <Plus className="h-4 w-4 text-slate-950" />
-                  <span>Create Storage Key</span>
-                </button>
-              </div>
-
-              {/* Warnings/Admonition card */}
-              <div className="bg-amber-500/10 border border-amber-500/25 p-4 rounded-xl flex gap-3">
-                <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-300 leading-relaxed">
-                  <strong className="font-semibold block mb-0.5 text-amber-400">⚠️ Operator Notice: Pro-Direct Access</strong>
-                  These records populate dynamic system behaviors (such as subscriptions, administrator roles, and session structures). Making manual edits to structured JSON arrays (e.g. <code className="bg-amber-950/40 px-1 py-0.5 rounded font-mono">v2ray_subscriptions_list</code>) will propagate immediately. Ensure syntax validity before committing.
-                </div>
-              </div>
-
-              {/* Split-screen or elegant row editor layout */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                {/* LIST of active database key-value pairs */}
-                <div className="lg:col-span-5 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
-                  <div className="p-4 border-b border-slate-850 flex items-center justify-between bg-slate-950">
-                    <span className="text-xs font-bold uppercase font-mono tracking-wider text-slate-400">
-                      🗝️ Registered Storage Keys ({dbRows.length})
-                    </span>
-                    <button
-                      type="button"
-                      disabled={isLoadingDb}
-                      onClick={fetchDbRows}
-                      className="p-1.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-lg text-slate-400 transition cursor-pointer"
-                      title="Sync records"
-                    >
-                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingDb ? "animate-spin" : ""}`} />
-                    </button>
-                  </div>
-
-                  <div className="divide-y divide-slate-900/60 max-h-[500px] overflow-y-auto">
-                    {isLoadingDb ? (
-                      <div className="p-8 text-center text-xs text-slate-500">
-                        <span className="inline-block animate-spin mr-1">⚙️</span> Connecting to local Turso store...
-                      </div>
-                    ) : dbRows.length === 0 ? (
-                      <div className="p-8 text-center text-xs text-slate-500 italic">
-                        No keys detected in the database.
-                      </div>
-                    ) : (
-                      dbRows.map((row) => {
-                        const isSystem = ["v2ray_subscriptions_list", "v2ray_administrators_list", "v2ray_active_sessions_map", "admin_active_session_token"].includes(row.key);
-                        const isCurrentlyEditing = editingDbKey === row.key && !isNewDbRow;
-                        return (
-                          <div
-                            key={row.key}
-                            role="button"
-                            onClick={() => {
-                              setIsNewDbRow(false);
-                              setEditingDbKey(row.key);
-                              setEditingDbValue(row.value);
-                            }}
-                            className={`p-3 text-left transition relative cursor-pointer group ${
-                              isCurrentlyEditing 
-                                ? "bg-emerald-500/10 border-l-2 border-emerald-500 text-white" 
-                                : "hover:bg-slate-900/50 text-slate-300"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-xs font-mono font-semibold break-all max-w-[80%]">
-                                {row.key}
-                              </span>
-                              {isSystem && (
-                                <span className="text-[8px] tracking-wider uppercase bg-slate-900 text-slate-500 border border-slate-800 font-mono px-1 rounded shrink-0">
-                                  System
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-slate-500 truncate mt-1">
-                              {row.value.length > 50 ? `${row.value.substring(0, 50)}...` : row.value}
-                            </div>
-                            <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteDbRow(row.key);
-                                }}
-                                className="p-1 hover:bg-red-500/20 text-red-400 rounded transition cursor-pointer"
-                                title="Delete row"
-                              >
-                                <Trash className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
-                {/* VISUAL COMPONENT EDITOR WORKSPACE */}
-                <div className="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4">
-                  {editingDbKey ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-850 pb-2.5">
-                        <span className="text-xs font-bold font-mono text-emerald-400">
-                          {isNewDbRow ? "✨ CREATE NEW DATABASE ENTRY" : `🛠️ EDITING: ${editingDbKey}`}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingDbKey(null);
-                            setIsNewDbRow(false);
-                          }}
-                          className="text-slate-500 hover:text-slate-300 text-xs text-right"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-
-                      {isNewDbRow && (
-                        <div>
-                          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
-                            Database Unique Key
-                          </label>
-                          <input
-                            type="text"
-                            value={newDbKey}
-                            onChange={(e) => setNewDbKey(e.target.value.trim().replace(/[^a-zA-Z0-9_-]/g, ""))}
-                            placeholder="e.g. override_custom_setting"
-                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                      )}
-
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono flex items-center justify-between">
-                          <span>Value Payload (Raw Text or Structured JSON)</span>
-                          <span className="text-[10px] text-slate-500 italic lowercase font-normal w-max text-right">Length: {editingDbValue.length} characters</span>
-                        </label>
-                        <textarea
-                          rows={14}
-                          value={editingDbValue}
-                          onChange={(e) => setEditingDbValue(e.target.value)}
-                          placeholder='e.g. {"key": "value"}'
-                          className="w-full p-4 bg-slate-900 border border-slate-800 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-emerald-500 leading-relaxed resize-y"
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between gap-4 pt-1">
-                        <p className="text-[10px] text-slate-500 leading-relaxed max-w-[60%] select-none font-sans">
-                          If valid JSON format is provided, the engine will automatically parse and save it as a structured SQLite entity.
-                        </p>
-                        
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const finalKey = isNewDbRow ? newDbKey : editingDbKey;
-                            if (isNewDbRow && !finalKey) {
-                              showToast("Please enter a non-empty key name", "error");
-                              return;
-                            }
-                            handleSaveDbRow(finalKey!, editingDbValue, isNewDbRow);
-                          }}
-                          className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer select-none shrink-0"
-                        >
-                          Commit Store Transaction
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center p-16 text-center space-y-3">
-                      <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-full text-slate-500">
-                        <Database className="h-8 w-8 text-slate-400" />
-                      </div>
-                      <h4 className="text-sm font-semibold text-slate-300 font-sans">No Database Record Selected</h4>
-                      <p className="text-slate-500 text-xs max-w-sm font-sans">
-                        Click on any registered database key in the left-hand index to modify its key-value payloads, inspect parameters, or reset configuration assets.
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
-          )}
-
-        </div>
           )}
         </main>
 
