@@ -225,6 +225,8 @@ export async function GET(
 
       const totalNodes = baseConfigs.length + rawAlternatives.length;
 
+      const isSubOffline = sub.status === "offline";
+
       // Generate the exact pretty JSON string with renamed remarks applied
       const jsonOutputText = generateProcessedSubscription(sub, "json", fetchedAdditionalConfigs);
       const jsonB64 = Buffer.from(jsonOutputText, "utf-8").toString("base64");
@@ -256,7 +258,7 @@ export async function GET(
       font-family: 'JetBrains Mono', monospace;
     }
     .lime-glow {
-      box-shadow: 0 0 40px -10px rgba(163, 230, 53, 0.15);
+      box-shadow: 0 0 40px -10px ${isSubOffline ? 'rgba(239, 68, 68, 0.15)' : 'rgba(163, 230, 53, 0.15)'};
     }
     /* Simple custom scrollbar styling */
     .scrollbar-thin::-webkit-scrollbar {
@@ -278,14 +280,14 @@ export async function GET(
 <body class="bg-slate-950 text-slate-100 min-h-screen relative flex flex-col items-center justify-start p-4 py-8 antialiased selection:bg-lime-500/30 selection:text-lime-300">
   
   <!-- Glow orbs -->
-  <div class="absolute inset-x-0 top-0 h-[400px] bg-[radial-gradient(circle_at_top,rgba(163,230,53,0.06),transparent_60%)] pointer-events-none"></div>
+  <div class="absolute inset-x-0 top-0 h-[400px] bg-[radial-gradient(circle_at_top,${isSubOffline ? 'rgba(239,68,68,0.06)' : 'rgba(163,230,53,0.06)'},transparent_60%)] pointer-events-none"></div>
 
   <div class="max-w-2xl w-full space-y-6 relative z-10 my-auto">
     
     <!-- Header -->
     <div class="text-center space-y-3">
-      <div class="inline-flex items-center justify-center p-3.5 bg-lime-500/10 border border-lime-500/20 rounded-2xl shadow-lg shadow-lime-500/5 transition duration-300 pointer-events-none">
-        <span class="text-3xl filter drop-shadow-[0_4px_8px_rgba(163,230,53,0.3)]">🍋</span>
+      <div class="inline-flex items-center justify-center p-3.5 ${isSubOffline ? 'bg-rose-500/10 border-rose-500/20' : 'bg-lime-500/10 border-lime-500/20'} rounded-2xl shadow-lg transition duration-300 pointer-events-none">
+        <span class="text-3xl filter ${isSubOffline ? 'drop-shadow-[0_4px_8px_rgba(239,68,68,0.3)]' : 'drop-shadow-[0_4px_8px_rgba(163,230,53,0.3)]'}">🍋</span>
       </div>
       <div>
         <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-white flex items-center justify-center gap-2">
@@ -293,8 +295,8 @@ export async function GET(
           <span class="text-slate-400 font-light">&bull; Secure Gateway</span>
         </h1>
         <p class="text-slate-500 text-[10px] mt-1 font-mono tracking-widest uppercase flex items-center justify-center gap-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-lime-400 animate-pulse"></span>
-          Core Feed Active
+          <span class="w-1.5 h-1.5 rounded-full ${isSubOffline ? 'bg-rose-500' : 'bg-lime-400 animate-pulse'}"></span>
+          ${isSubOffline ? 'Core Feed Offline' : 'Core Feed Active'}
         </p>
       </div>
     </div>
@@ -306,8 +308,8 @@ export async function GET(
       <div class="grid grid-cols-2 gap-3">
         <div class="p-3 bg-slate-950 border border-slate-850 rounded-xl flex flex-col justify-between">
           <span class="text-[10px] uppercase font-mono tracking-wider text-slate-500">Status</span>
-          <span class="text-xs font-bold text-lime-400 mt-0.5 flex items-center gap-1">
-            <span class="w-2 h-2 rounded-full bg-lime-400 animate-ping"></span> Active
+          <span class="text-xs font-bold ${isSubOffline ? 'text-rose-500' : 'text-lime-400'} mt-0.5 flex items-center gap-1">
+            <span class="w-2 h-2 rounded-full ${isSubOffline ? 'bg-rose-500' : 'bg-lime-400 animate-ping'}"></span> ${isSubOffline ? 'Offline' : 'Active'}
           </span>
         </div>
         <div class="p-3 bg-slate-950 border border-slate-850 rounded-xl flex flex-col justify-between">

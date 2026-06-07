@@ -470,6 +470,7 @@ export default function Dashboard() {
         body: JSON.stringify({
           ...sub,
           status: nextStatus,
+          manualStatus: nextStatus,
         }),
       });
       const data = await res.json();
@@ -1207,15 +1208,19 @@ export default function Dashboard() {
           </p>
 
           {/* Critical admin alerts for fully offline subscriptions */}
-          {subscriptions.some((s) => s.status === "offline") && (
-            <div className="bg-red-500/10 border border-red-500/25 p-3.5 rounded-xl flex gap-3 text-left mb-3.5 animate-pulse duration-1000">
-              <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-              <div className="text-xs text-red-300 leading-relaxed">
-                <strong className="font-semibold block mb-0.5 text-red-400">🚨 Alert: Offline Subscriptions Devised</strong>
-                Some subscription lists failed connection checks. All nodes return offline. Click to investigate.
+          {(() => {
+            const offlineSubs = subscriptions.filter((s) => s.status === "offline");
+            if (offlineSubs.length === 0) return null;
+            return (
+              <div className="bg-red-500/10 border border-red-500/25 p-3.5 rounded-xl flex gap-3 text-left mb-3.5 animate-pulse duration-1000">
+                <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="text-xs text-red-300 leading-relaxed">
+                  <strong className="font-semibold block mb-0.5 text-red-400">🚨 Alert: Offline Subscriptions ({offlineSubs.map(s => s.name || s.path).join(", ")})</strong>
+                  These subscription lists failed connection checks or are manually offline. All nodes return offline. Click to investigate.
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div className="space-y-2.5 flex-1 select-none overflow-y-auto max-h-[14rem] lg:max-h-none">
             {subscriptions.length === 0 ? (

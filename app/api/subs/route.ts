@@ -82,10 +82,11 @@ export async function POST(req: NextRequest) {
         const alternativeJsonConfigsEqual = (subData.alternativeJsonConfigs || "") === (existingSub.alternativeJsonConfigs || "");
         const totalTrafficGbEqual = (subData.totalTrafficGb === undefined ? 1000 : Number(subData.totalTrafficGb)) === (existingSub.totalTrafficGb === undefined ? 1000 : Number(existingSub.totalTrafficGb));
         const statusEqual = (subData as any).status === existingSub.status;
+        const manualStatusEqual = (subData as any).manualStatus === existingSub.manualStatus;
         const nodeStatusesEqual = JSON.stringify((subData as any).nodeStatuses || null) === JSON.stringify(existingSub.nodeStatuses || null);
         const lastPingedAtEqual = (subData as any).lastPingedAt === existingSub.lastPingedAt;
 
-        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual && alternativePathEqual && alternativeJsonConfigsEqual && totalTrafficGbEqual && statusEqual && nodeStatusesEqual && lastPingedAtEqual) {
+        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual && alternativePathEqual && alternativeJsonConfigsEqual && totalTrafficGbEqual && statusEqual && manualStatusEqual && nodeStatusesEqual && lastPingedAtEqual) {
           // No changes detected! Avoid database update transaction completely.
           return NextResponse.json({ success: true, subscriptions: currentList, noChanges: true });
         }
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
             alternativeJsonConfigs: subData.alternativeJsonConfigs || "",
             totalTrafficGb: subData.totalTrafficGb !== undefined && subData.totalTrafficGb !== null && !isNaN(Number(subData.totalTrafficGb)) ? Number(subData.totalTrafficGb) : 1000,
             status: (subData as any).status !== undefined ? (subData as any).status : existing.status,
+            manualStatus: (subData as any).manualStatus !== undefined ? (subData as any).manualStatus : existing.manualStatus,
             nodeStatuses: (subData as any).nodeStatuses !== undefined ? (subData as any).nodeStatuses : existing.nodeStatuses,
             lastPingedAt: (subData as any).lastPingedAt !== undefined ? (subData as any).lastPingedAt : existing.lastPingedAt,
             updatedAt: new Date().toISOString(),

@@ -160,10 +160,15 @@ export async function pingAllSubscriptions(): Promise<PingSettings> {
       );
 
       // Status rule: if at least ONE checked node is online, sub is active. Otherwise, offline.
-      // If there were no checkable nodes, we keep active.
+      // If there were no checkable nodes, we keep active. Respect manual overrides if configured.
       let finalStatus: NodeStatusType = "active";
-      if (checkableNodesCount > 0 && activeNodesCount === 0) {
+      if (sub.manualStatus) {
+        finalStatus = sub.manualStatus;
+      } else if (checkableNodesCount > 0 && activeNodesCount === 0) {
         finalStatus = "offline";
+      }
+
+      if (finalStatus === "offline") {
         failedSubscriptions.push(sub.name || sub.path);
       }
 
