@@ -1365,7 +1365,7 @@ export default function Dashboard() {
                 {/* SIDEBAR NAVIGATION (Desktop panel) */}
                 <div className="hidden md:flex md:col-span-3 flex-col bg-slate-950 border border-slate-800/80 p-4 rounded-2xl space-y-1.5 shadow-xl select-none">
                   <div className="px-3 pb-3 mb-2 border-b border-slate-900 text-[10px] font-bold uppercase font-mono tracking-wider text-slate-500">
-                    📂 Workspace Options
+                    Workspace Options
                   </div>
                   
                   {/* Tab 1: Subscription Setup */}
@@ -1427,15 +1427,15 @@ export default function Dashboard() {
                       }}
                       className={`flex items-center gap-3 px-3.5 py-3.5 text-xs font-bold rounded-xl transition-all border text-left cursor-pointer ${
                         activeTab === "admins"
-                          ? "bg-amber-500/10 border-amber-500/30 text-amber-400 shadow-md"
+                          ? "bg-sky-500/10 border-sky-500/30 text-sky-400 shadow-md"
                           : "bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900"
                       }`}
                     >
-                      <Users className="h-4 w-4 shrink-0" />
+                      <Users className="h-4 w-4 shrink-0 text-sky-450" />
                       <div className="flex items-center justify-between w-full font-sans">
                         <span className="font-sans leading-none">Admins &amp; Roles</span>
                         {adminsList.length > 0 && (
-                          <span className="bg-amber-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1 shrink-0">
+                          <span className="bg-sky-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1 shrink-0">
                             {adminsList.length}
                           </span>
                         )}
@@ -1535,15 +1535,15 @@ export default function Dashboard() {
                               }}
                               className={`flex items-center gap-3.5 w-full px-4 py-4 text-xs font-bold rounded-xl border text-left cursor-pointer transition ${
                                 activeTab === "admins"
-                                  ? "bg-amber-500/10 border-amber-500/30 text-amber-400 font-bold"
+                                  ? "bg-sky-500/10 border-sky-500/30 text-sky-400 font-bold"
                                   : "bg-transparent border-transparent text-slate-400 hover:bg-slate-950/45"
                               }`}
                             >
-                              <Users className="h-4.5 w-4.5 shrink-0 text-amber-400" />
+                              <Users className="h-4.5 w-4.5 shrink-0 text-sky-400" />
                               <div className="flex justify-between items-center w-full">
                                 <span>Admins &amp; Roles</span>
                                 {adminsList.length > 0 && (
-                                  <span className="bg-amber-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1">
+                                  <span className="bg-sky-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold ml-1">
                                     {adminsList.length}
                                   </span>
                                 )}
@@ -1624,7 +1624,7 @@ export default function Dashboard() {
                                 onClick={() => handleUpdatePingSettings("manual", pingSettings.intervalMinutes)}
                                 className={`px-2 py-1.5 rounded-lg text-xs font-bold border transition text-center cursor-pointer ${
                                   pingSettings.mode === "manual"
-                                    ? "bg-amber-500/10 border-amber-500/50 text-amber-400"
+                                    ? "bg-sky-500/10 border-sky-500/50 text-sky-400"
                                     : "bg-slate-950/40 border-slate-850 text-slate-400 hover:text-slate-350"
                                 }`}
                               >
@@ -1973,7 +1973,7 @@ export default function Dashboard() {
                       <div className="mt-5 pt-4 border-t border-slate-800/60 space-y-3">
                         <div className="flex items-center justify-between">
                           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">
-                            ✏️ Specific Node Renaming Overrides (Optional)
+                            Specific Node Renaming Overrides (Optional)
                           </label>
                           <span className="text-[10px] font-mono text-slate-500">
                             Count: {configsList.length}
@@ -2140,7 +2140,7 @@ export default function Dashboard() {
               {/* SECTION: 5. OPTIONAL ALTERNATIVE SUB ROUTE PATH & CONFIG */}
               <div id="section_alternative_sub_config" className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-5">
                 <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                  <Globe className="h-5 w-5 text-lime-400 shrink-0" />
+                  <Globe className="h-5 w-5 text-sky-400 shrink-0" />
                   <h3 className="text-sm font-semibold text-white tracking-wide">
                     5. Alternative Subscription Route & JSON Configs
                   </h3>
@@ -2156,7 +2156,7 @@ export default function Dashboard() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     <div className="space-y-2">
                       <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                        <span>🏷️ Alternative Sub Path</span>
+                        <span>Alternative Sub Path</span>
                       </label>
                       <div className="flex items-center gap-2">
                         <span className="text-slate-500 font-mono text-xs select-none">/sub/</span>
@@ -2176,7 +2176,7 @@ export default function Dashboard() {
 
                     <div className="space-y-2">
                       <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center justify-between">
-                        <span>📝 Alternative Specific JSON Configs</span>
+                        <span>Alternative Specific JSON Configs</span>
                       </label>
                       <textarea
                         id="textarea_alternative_json_configs"
@@ -2439,7 +2439,7 @@ export default function Dashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950 p-5 rounded-2xl border border-slate-800">
                 <div>
                   <h3 className="text-base font-semibold text-white tracking-tight flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-amber-400" />
+                    <Shield className="h-5 w-5 text-sky-400" />
                     <span>👥 Admin Accounts &amp; Privileges</span>
                   </h3>
                   <p className="text-slate-400 text-xs mt-1">
@@ -2450,7 +2450,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={handleOpenCreateAdminModal}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer"
                 >
                   <Plus className="h-4 w-4 text-slate-950" />
                   <span>Create Operator</span>
@@ -2581,7 +2581,7 @@ export default function Dashboard() {
           <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-850 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Shield className="h-5 w-5 text-amber-400 animate-pulse" />
+                <Shield className="h-5 w-5 text-sky-400 animate-pulse" />
                 <span>{selectedAdminUsername ? `Modify Administrator: @${adminUsername}` : "Create New System Administrator"}</span>
               </h3>
               <button
@@ -2604,7 +2604,7 @@ export default function Dashboard() {
                   value={adminUsername}
                   onChange={(e) => setAdminUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
                   placeholder="e.g. support_iran"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-sans focus:outline-none focus:border-amber-500 disabled:opacity-55 disabled:cursor-not-allowed transition-all"
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-sans focus:outline-none focus:border-sky-500 disabled:opacity-55 disabled:cursor-not-allowed transition-all"
                 />
               </div>
 
@@ -2617,7 +2617,7 @@ export default function Dashboard() {
                   value={adminName}
                   onChange={(e) => setAdminName(e.target.value)}
                   placeholder="e.g. Support Iran Team"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-sans focus:outline-none focus:border-amber-500 transition-all font-semibold"
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-sans focus:outline-none focus:border-sky-500 transition-all font-semibold"
                 />
               </div>
 
@@ -2630,7 +2630,7 @@ export default function Dashboard() {
                   value={adminPassword}
                   onChange={(e) => setAdminPassword(e.target.value)}
                   placeholder={selectedAdminUsername ? "••••••••••••" : "At least 6 characters..."}
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-mono tracking-widest focus:outline-none focus:border-amber-500 transition-all"
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-mono tracking-widest focus:outline-none focus:border-sky-500 transition-all"
                 />
               </div>
 
@@ -2642,7 +2642,7 @@ export default function Dashboard() {
                   value={adminLevel}
                   onChange={(e) => setAdminLevel(Number(e.target.value))}
                   disabled={adminUsername === "admin"}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-amber-500 transition-all cursor-pointer font-medium"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs focus:outline-none focus:border-sky-500 transition-all cursor-pointer font-medium"
                 >
                   <option value={3}>Level 3 — Super Admin (Full Read-Write &amp; User CRUD)</option>
                   <option value={2}>Level 2 — Editor (Read-Write of Subscriptions &amp; Metrics Purge)</option>
@@ -2664,7 +2664,7 @@ export default function Dashboard() {
                   value={adminDescription}
                   onChange={(e) => setAdminDescription(e.target.value)}
                   placeholder="e.g. Head of Support Group"
-                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-sans focus:outline-none focus:border-amber-500 transition-all text-slate-300"
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-lg text-white text-xs font-sans focus:outline-none focus:border-sky-500 transition-all text-slate-300"
                 />
               </div>
 
@@ -2679,14 +2679,14 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setShowAdminModal(false)}
-                  className="px-4 py-2 bg-slate-850 hover:bg-slate-800 text-slate-300 text-xs font-semibold rounded-lg transition"
+                  className="px-4 py-2 bg-slate-850 hover:bg-slate-800 text-slate-300 text-xs font-semibold rounded-lg transition cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isAdminSaving}
-                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 font-bold text-slate-950 text-xs rounded-lg transition"
+                  className="px-5 py-2 bg-sky-500 hover:bg-sky-400 active:bg-sky-600 font-bold text-slate-950 text-xs rounded-lg transition cursor-pointer"
                 >
                   {isAdminSaving ? "Saving..." : "Save Operator Account"}
                 </button>
