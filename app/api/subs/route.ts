@@ -81,8 +81,11 @@ export async function POST(req: NextRequest) {
         const alternativePathEqual = (subData.alternativePath || "") === (existingSub.alternativePath || "");
         const alternativeJsonConfigsEqual = (subData.alternativeJsonConfigs || "") === (existingSub.alternativeJsonConfigs || "");
         const totalTrafficGbEqual = (subData.totalTrafficGb === undefined ? 1000 : Number(subData.totalTrafficGb)) === (existingSub.totalTrafficGb === undefined ? 1000 : Number(existingSub.totalTrafficGb));
+        const statusEqual = (subData as any).status === existingSub.status;
+        const nodeStatusesEqual = JSON.stringify((subData as any).nodeStatuses || null) === JSON.stringify(existingSub.nodeStatuses || null);
+        const lastPingedAtEqual = (subData as any).lastPingedAt === existingSub.lastPingedAt;
 
-        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual && alternativePathEqual && alternativeJsonConfigsEqual && totalTrafficGbEqual) {
+        if (nameEqual && pathEqual && remarksTemplateEqual && jsonConfigsEqual && dummyConfigsEqual && nameOverridesEqual && enabledFormatsEqual && customFormatPayloadsEqual && defaultFormatEqual && additionalLinkEqual && alternativePathEqual && alternativeJsonConfigsEqual && totalTrafficGbEqual && statusEqual && nodeStatusesEqual && lastPingedAtEqual) {
           // No changes detected! Avoid database update transaction completely.
           return NextResponse.json({ success: true, subscriptions: currentList, noChanges: true });
         }
