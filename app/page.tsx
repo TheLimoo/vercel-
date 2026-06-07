@@ -25,7 +25,8 @@ import {
   Users,
   Lock,
   Shield,
-  ArrowLeft
+  ArrowLeft,
+  Database
 } from "lucide-react";
 
 import { Subscription, DummyConfig, extractConfigsList, updateConfigRemark } from "@/lib/v2ray";
@@ -163,7 +164,7 @@ export default function Dashboard() {
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
 
   // Tab State & Users connection tracking metrics
-  const [activeTab, setActiveTab] = useState<"config" | "metrics" | "admins">("config");
+  const [activeTab, setActiveTab] = useState<"config" | "metrics" | "admins" | "db">("config");
   const [metricsList, setMetricsList] = useState<any[]>([]);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
 
@@ -179,6 +180,14 @@ export default function Dashboard() {
   const [selectedAdminUsername, setSelectedAdminUsername] = useState<string | null>(null);
   const [adminError, setAdminError] = useState("");
   const [isAdminSaving, setIsAdminSaving] = useState(false);
+
+  // States for Database management (Level 3 exclusive)
+  const [dbRows, setDbRows] = useState<{ key: string; value: string }[]>([]);
+  const [isLoadingDb, setIsLoadingDb] = useState(false);
+  const [editingDbKey, setEditingDbKey] = useState<string | null>(null);
+  const [editingDbValue, setEditingDbValue] = useState("");
+  const [isNewDbRow, setIsNewDbRow] = useState(false);
+  const [newDbKey, setNewDbKey] = useState("");
 
   // Root Host URL calculations computed cleanly during rendering
   const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
@@ -473,10 +482,104 @@ export default function Dashboard() {
     }
   };
 
+  // Database key/value operations and loaders
+  const fetchDbRows = async () => {
+    setIsLoadingDb(true);
+    try {
+      const res = await fetch("/api/db");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setDbRows(data.rows || []);
+        } else {
+          showToast(data.error || "Failed to fetch database keys", "error");
+        }
+      } else {
+        showToast("Access Denied: Read-only Viewer permissions cannot access raw Database.", "error");
+      }
+    } catch (err) {
+      showToast("Network failure reading database configurations", "error");
+    } finally {
+      setIsLoadingDb(false);
+    }
+  };
+
+  const handleSaveDbRow = async (key: string, value: string, isCreate: boolean) => {
+    const trimmedKey = key.trim();
+    if (!trimmedKey) {
+      showToast("Database storage key cannot be blank", "error");
+      return;
+    }
+    try {
+      const res = await fetch("/api/db", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: trimmedKey, value }),
+      });
+      if (res.ok) {
+        showToast(isCreate ? `Stored new database key "${trimmedKey}"` : `Updated database key "${trimmedKey}"`, "success");
+        setEditingDbKey(null);
+        setIsNewDbRow(false);
+        setNewDbKey("");
+        setEditingDbValue("");
+        fetchDbRows();
+        
+        // Auto-refresh main state if we modified key subscriptions
+        if (trimmedKey === "v2ray_subscriptions_list") {
+          const subsRes = await fetch("/api/subs");
+          if (subsRes.ok) {
+            const subsData = await subsRes.json();
+            setSubscriptions(subsData.subscriptions || []);
+          }
+        }
+      } else {
+        const errData = await res.json();
+        showToast(errData.error || "Could not write key/value to database", "error");
+      }
+    } catch (err) {
+      showToast("Network failure updating database records", "error");
+    }
+  };
+
+  const handleDeleteDbRow = async (key: string) => {
+    if (key === "v2ray_administrators_list") {
+      showToast("Warning: Deleting the administrators list key will purge all operator credentials!", "error");
+      if (!confirm("Are you absolutely sure you want to proceed? This will delete all operator settings including the admin account.")) {
+        return;
+      }
+    } else {
+      if (!confirm(`Are you sure you want to permanently delete raw database key "${key}"?`)) {
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch(`/api/db?key=${encodeURIComponent(key)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        showToast(`Successfully deleted database key "${key}"`, "success");
+        fetchDbRows();
+        if (key === "v2ray_subscriptions_list") {
+          setSubscriptions([]);
+        }
+      } else {
+        const errData = await res.json();
+        showToast(errData.error || "Failed to remove database key", "error");
+      }
+    } catch (err) {
+      showToast("Network failure removing database key", "error");
+    }
+  };
+
   useEffect(() => {
     if (activeTab === "admins" && currentUser?.level === 3) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchAdmins();
+    }
+    if (activeTab === "db" && currentUser?.level === 3) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchDbRows();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentUser]);
@@ -1246,6 +1349,29 @@ export default function Dashboard() {
                     )}
                   </button>
                 )}
+
+                {currentUser?.level === 3 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("db");
+                      fetchDbRows();
+                    }}
+                    className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold border-b-2 transition-all relative ${
+                      activeTab === "db"
+                        ? "border-emerald-500 text-emerald-400 bg-emerald-500/5 font-bold"
+                        : "border-transparent text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    <Database className="h-4 w-4" />
+                    <span>Database Manager</span>
+                    {dbRows.length > 0 && (
+                      <span className="bg-emerald-500 text-slate-950 font-mono text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                        {dbRows.length}
+                      </span>
+                    )}
+                  </button>
+                )}
               </div>
 
               {activeTab === "config" ? (
@@ -1913,7 +2039,7 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
-          ) : (
+          ) : activeTab === "admins" ? (
             <div className="space-y-6 pb-12 animate-fade-in duration-300 text-left">
               {/* ADMIN ACCOUNT MANAGEMENT SECTION */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950 p-5 rounded-2xl border border-slate-800">
@@ -2042,6 +2168,208 @@ export default function Dashboard() {
                       )}
                     </tbody>
                   </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6 pb-12 animate-fade-in duration-300 text-left">
+              {/* DATABASE MANAGER HEADING CARD */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-950 p-5 rounded-2xl border border-slate-800">
+                <div>
+                  <h3 className="text-base font-semibold text-white tracking-tight flex items-center gap-2">
+                    <Database className="h-5 w-5 text-emerald-400" />
+                    <span>🗄️ Database Manager &amp; Simple Editor</span>
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-1">
+                    Direct access to the SQLite key-value database. View or safely prune legacy configuration states and custom variables.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsNewDbRow(true);
+                    setEditingDbKey("custom_prop_" + Math.random().toString(36).substring(2, 7));
+                    setEditingDbValue("");
+                    setNewDbKey("");
+                  }}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-slate-950 font-bold text-xs rounded-xl transition cursor-pointer"
+                >
+                  <Plus className="h-4 w-4 text-slate-950" />
+                  <span>Create Storage Key</span>
+                </button>
+              </div>
+
+              {/* Warnings/Admonition card */}
+              <div className="bg-amber-500/10 border border-amber-500/25 p-4 rounded-xl flex gap-3">
+                <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-300 leading-relaxed">
+                  <strong className="font-semibold block mb-0.5 text-amber-400">⚠️ Operator Notice: Pro-Direct Access</strong>
+                  These records populate dynamic system behaviors (such as subscriptions, administrator roles, and session structures). Making manual edits to structured JSON arrays (e.g. <code className="bg-amber-950/40 px-1 py-0.5 rounded font-mono">v2ray_subscriptions_list</code>) will propagate immediately. Ensure syntax validity before committing.
+                </div>
+              </div>
+
+              {/* Split-screen or elegant row editor layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* LIST of active database key-value pairs */}
+                <div className="lg:col-span-5 bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+                  <div className="p-4 border-b border-slate-850 flex items-center justify-between bg-slate-950">
+                    <span className="text-xs font-bold uppercase font-mono tracking-wider text-slate-400">
+                      🗝️ Registered Storage Keys ({dbRows.length})
+                    </span>
+                    <button
+                      type="button"
+                      disabled={isLoadingDb}
+                      onClick={fetchDbRows}
+                      className="p-1.5 bg-slate-900 border border-slate-800 hover:bg-slate-800 rounded-lg text-slate-400 transition cursor-pointer"
+                      title="Sync records"
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${isLoadingDb ? "animate-spin" : ""}`} />
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-slate-900/60 max-h-[500px] overflow-y-auto">
+                    {isLoadingDb ? (
+                      <div className="p-8 text-center text-xs text-slate-500">
+                        <span className="inline-block animate-spin mr-1">⚙️</span> Connecting to local Turso store...
+                      </div>
+                    ) : dbRows.length === 0 ? (
+                      <div className="p-8 text-center text-xs text-slate-500 italic">
+                        No keys detected in the database.
+                      </div>
+                    ) : (
+                      dbRows.map((row) => {
+                        const isSystem = ["v2ray_subscriptions_list", "v2ray_administrators_list", "v2ray_active_sessions_map", "admin_active_session_token"].includes(row.key);
+                        const isCurrentlyEditing = editingDbKey === row.key && !isNewDbRow;
+                        return (
+                          <div
+                            key={row.key}
+                            role="button"
+                            onClick={() => {
+                              setIsNewDbRow(false);
+                              setEditingDbKey(row.key);
+                              setEditingDbValue(row.value);
+                            }}
+                            className={`p-3 text-left transition relative cursor-pointer group ${
+                              isCurrentlyEditing 
+                                ? "bg-emerald-500/10 border-l-2 border-emerald-500 text-white" 
+                                : "hover:bg-slate-900/50 text-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-mono font-semibold break-all max-w-[80%]">
+                                {row.key}
+                              </span>
+                              {isSystem && (
+                                <span className="text-[8px] tracking-wider uppercase bg-slate-900 text-slate-500 border border-slate-800 font-mono px-1 rounded shrink-0">
+                                  System
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-500 truncate mt-1">
+                              {row.value.length > 50 ? `${row.value.substring(0, 50)}...` : row.value}
+                            </div>
+                            <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 flex items-center gap-1 transition">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteDbRow(row.key);
+                                }}
+                                className="p-1 hover:bg-red-500/20 text-red-400 rounded transition cursor-pointer"
+                                title="Delete row"
+                              >
+                                <Trash className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* VISUAL COMPONENT EDITOR WORKSPACE */}
+                <div className="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-2xl p-5 space-y-4">
+                  {editingDbKey ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-850 pb-2.5">
+                        <span className="text-xs font-bold font-mono text-emerald-400">
+                          {isNewDbRow ? "✨ CREATE NEW DATABASE ENTRY" : `🛠️ EDITING: ${editingDbKey}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingDbKey(null);
+                            setIsNewDbRow(false);
+                          }}
+                          className="text-slate-500 hover:text-slate-300 text-xs text-right"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+
+                      {isNewDbRow && (
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono">
+                            Database Unique Key
+                          </label>
+                          <input
+                            type="text"
+                            value={newDbKey}
+                            onChange={(e) => setNewDbKey(e.target.value.trim().replace(/[^a-zA-Z0-9_-]/g, ""))}
+                            placeholder="e.g. override_custom_setting"
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-lg text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 font-mono flex items-center justify-between">
+                          <span>Value Payload (Raw Text or Structured JSON)</span>
+                          <span className="text-[10px] text-slate-500 italic lowercase font-normal w-max text-right">Length: {editingDbValue.length} characters</span>
+                        </label>
+                        <textarea
+                          rows={14}
+                          value={editingDbValue}
+                          onChange={(e) => setEditingDbValue(e.target.value)}
+                          placeholder='e.g. {"key": "value"}'
+                          className="w-full p-4 bg-slate-900 border border-slate-800 rounded-xl text-white font-mono text-xs focus:outline-none focus:border-emerald-500 leading-relaxed resize-y"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4 pt-1">
+                        <p className="text-[10px] text-slate-500 leading-relaxed max-w-[60%] select-none font-sans">
+                          If valid JSON format is provided, the engine will automatically parse and save it as a structured SQLite entity.
+                        </p>
+                        
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const finalKey = isNewDbRow ? newDbKey : editingDbKey;
+                            if (isNewDbRow && !finalKey) {
+                              showToast("Please enter a non-empty key name", "error");
+                              return;
+                            }
+                            handleSaveDbRow(finalKey!, editingDbValue, isNewDbRow);
+                          }}
+                          className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition cursor-pointer select-none shrink-0"
+                        >
+                          Commit Store Transaction
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center p-16 text-center space-y-3">
+                      <div className="p-4 bg-slate-900/60 border border-slate-800/80 rounded-full text-slate-500">
+                        <Database className="h-8 w-8 text-slate-400" />
+                      </div>
+                      <h4 className="text-sm font-semibold text-slate-300 font-sans">No Database Record Selected</h4>
+                      <p className="text-slate-500 text-xs max-w-sm font-sans">
+                        Click on any registered database key in the left-hand index to modify its key-value payloads, inspect parameters, or reset configuration assets.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
