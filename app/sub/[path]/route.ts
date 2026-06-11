@@ -227,9 +227,9 @@ export async function GET(
 
       const isSubOffline = sub.status === "offline";
 
-      // Generate the exact pretty JSON string with renamed remarks applied
-      const jsonOutputText = generateProcessedSubscription(sub, "json", fetchedAdditionalConfigs);
-      const jsonB64 = Buffer.from(jsonOutputText, "utf-8").toString("base64");
+      // Generate the exact pretty standard links string with renamed remarks applied
+      const linksOutputTextWithFallback = generateProcessedSubscription(sub, "links", fetchedAdditionalConfigs);
+      const linksB64 = Buffer.from(linksOutputTextWithFallback, "utf-8").toString("base64");
 
       const safeName = (sub.name || "Unnamed").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       const safePath = (sub.path || "").replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -355,29 +355,30 @@ export async function GET(
             type="button" 
             id="copy-sub-btn"
             onclick="navigator.clipboard.writeText('${activeUrl}').then(() => { showToast('Subscription URL copied!'); });"
-            class="flex items-center justify-center bg-lime-400 hover:bg-lime-300 active:bg-lime-500 text-slate-950 p-2.5 rounded-xl transition cursor-pointer shadow-md shadow-lime-500/5"
+            class="flex items-center justify-center gap-1.5 bg-lime-400 hover:bg-lime-300 active:bg-lime-500 text-slate-950 px-3 py-2 rounded-xl font-bold text-xs transition cursor-pointer shadow-md shadow-lime-500/5 shrink-0"
             title="Copy URL Address"
           >
             <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+            <span>Copy (v5.0.3)</span>
           </button>
         </div>
       </div>
 
-      <!-- Copy Client Configurations JSON Viewport -->
+      <!-- Copy Client Configurations Plain Viewport -->
       <div class="space-y-3 pt-2">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">
             <span class="inline-block w-1.5 h-3 bg-lime-400 rounded-sm"></span> 
-            <span>Configurations File (JSON format)</span>
+            <span>Configurations Feed</span>
           </div>
           <button 
             type="button" 
-            id="copy-json-btn"
-            onclick="navigator.clipboard.writeText(atob('${jsonB64}')).then(() => { showToast('JSON Configs copied!'); });"
-            class="flex items-center gap-1.5 bg-lime-500/10 hover:bg-lime-500/20 active:bg-lime-500/30 text-lime-400 border border-lime-500/20 px-30 py-1.5 px-3 rounded-xl text-[11px] font-bold font-mono transition cursor-pointer"
-            title="Copy entire JSON configs"
+            id="copy-links-btn"
+            onclick="navigator.clipboard.writeText(atob('${linksB64}')).then(() => { showToast('Subscription Feed copied!'); });"
+            class="flex items-center gap-1.5 bg-lime-500/10 hover:bg-lime-500/20 active:bg-lime-500/30 text-lime-400 border border-lime-500/20 py-1.5 px-3 rounded-xl text-[11px] font-bold font-mono transition cursor-pointer"
+            title="Copy entire subscription feed"
           >
-            📋 Copy JSON
+            📋 Copy Feed
           </button>
         </div>
 
@@ -389,12 +390,12 @@ export async function GET(
               <span class="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
             </div>
-            <span class="text-[10px] font-mono text-slate-500 tracking-wider font-semibold">configs.json</span>
+            <span class="text-[10px] font-mono text-slate-500 tracking-wider font-semibold">subscription.txt</span>
             <div class="w-12"></div>
           </div>
           
           <!-- Code Block with Client-Side Syntax Accent Colorizing -->
-          <pre class="p-4 overflow-auto max-h-[380px] text-[11px] font-mono leading-relaxed text-left break-all whitespace-pre-wrap select-all scrollbar-thin scrollbar-thumb-slate-800" style="word-break: break-all;"><code id="json-code" class="block text-slate-300"></code></pre>
+          <pre class="p-4 overflow-auto max-h-[380px] text-[11px] font-mono leading-relaxed text-left break-all whitespace-pre-wrap select-all scrollbar-thin scrollbar-thumb-slate-800" style="word-break: break-all;"><code id="links-code" class="block text-slate-300"></code></pre>
         </div>
       </div>
 
@@ -403,11 +404,11 @@ export async function GET(
     <!-- Plain Text URL Fallback link -->
     <div class="text-center select-none">
       <a 
-        href="/sub/${safePath}?format=json&raw=true" 
+        href="/sub/${safePath}?format=links&raw=true" 
         target="_blank"
         class="text-[11px] font-mono text-slate-500 hover:text-lime-400 underline transition-all"
       >
-        View RAW JSON configurations profile &rarr;
+        View RAW subscription feed profile &rarr;
       </a>
     </div>
 
@@ -442,33 +443,30 @@ export async function GET(
     }
 
     // High performance syntax colorization helper mapping to tailwind classes
-    function syntaxHighlight(jsonStr) {
-      jsonStr = jsonStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      return jsonStr.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\\d+(?:\\.\\d*)?(?:[eE][+-]?\\d+)?)/g, function (match) {
-        var cls = 'text-amber-300';
-        if (/^"/.test(match)) {
-          if (/:$/.test(match)) {
-            cls = 'text-sky-450 font-semibold';
-          } else {
-            cls = 'text-teal-400';
-          }
-        } else if (/true|false/.test(match)) {
-          cls = 'text-fuchsia-400 font-medium';
-        } else if (/null/.test(match)) {
-          cls = 'text-rose-400';
-        } else {
-          cls = 'text-violet-400';
+    function syntaxHighlightLinks(rawText) {
+      const lines = rawText.split('\\n');
+      return lines.map(line => {
+        let trimmed = line.trim();
+        if (!trimmed) return '';
+        if (trimmed.startsWith('vless://')) {
+          return '<span class="text-lime-400 font-semibold">' + trimmed.substring(0, 8) + '</span><span class="text-slate-300">' + trimmed.substring(8) + '</span>';
+        } else if (trimmed.startsWith('vmess://')) {
+          return '<span class="text-sky-400 font-semibold">' + trimmed.substring(0, 8) + '</span><span class="text-slate-400">' + trimmed.substring(8) + '</span>';
+        } else if (trimmed.startsWith('trojan://')) {
+          return '<span class="text-fuchsia-400 font-semibold">' + trimmed.substring(0, 9) + '</span><span class="text-slate-400">' + trimmed.substring(9) + '</span>';
+        } else if (trimmed.startsWith('ss://')) {
+          return '<span class="text-amber-400 font-semibold">' + trimmed.substring(0, 5) + '</span><span class="text-slate-400">' + trimmed.substring(5) + '</span>';
         }
-        return '<span class="' + cls + '">' + match + '</span>';
-      });
+        return '<span class="text-slate-400">' + trimmed + '</span>';
+      }).join('\\n');
     }
 
     try {
-      const rawB64 = '${jsonB64}';
-      const rawJson = atob(rawB64);
-      document.getElementById('json-code').innerHTML = syntaxHighlight(rawJson);
+      const rawB64 = '${linksB64}';
+      const rawLinks = atob(rawB64);
+      document.getElementById('links-code').innerHTML = syntaxHighlightLinks(rawLinks);
     } catch (e) {
-      console.error('Failed to parse or render JSON code: ', e);
+      console.error('Failed to parse or render subscription links: ', e);
     }
   </script>
 </body>

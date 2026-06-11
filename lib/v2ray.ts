@@ -1030,6 +1030,14 @@ export function generateProcessedSubscription(
   }
 
   if (activeFormat === "json") {
+    // Check if the original jsonConfigs represents a single JSON object
+    const originTrimmed = (sub.jsonConfigs || "").trim();
+    const isSingleJsonObject = originTrimmed.startsWith("{") && originTrimmed.endsWith("}");
+
+    if (isSingleJsonObject && processedConfigs.length > 0 && mergedAdditional.length === 0) {
+      return JSON.stringify(processedConfigs[0], null, 2);
+    }
+
     // Return the exact configurations as entered, but with system renaming applied
     const finalConfigs = [...processedConfigs];
     mergedAdditional.forEach(link => {

@@ -1870,10 +1870,20 @@ export default function Dashboard() {
                                 type="button"
                                 id="copy_sub_link_btn"
                                 onClick={() => copyToClipboard(gatewayUrl, "standard")}
-                                className="p-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+                                className="px-4 py-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-750 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white rounded-lg transition flex items-center gap-2 text-xs font-semibold font-mono"
                                 title="Copy gateway subscription address"
                               >
-                                {copiedLink === "standard" ? <Check className="h-4 w-4 text-lime-400" /> : <Copy className="h-4 w-4" />}
+                                {copiedLink === "standard" ? (
+                                  <>
+                                    <Check className="h-4 w-4 text-lime-400" />
+                                    <span>Copied! (v5.0.3)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="h-4 w-4" />
+                                    <span>Copy (v5.0.3)</span>
+                                  </>
+                                )}
                               </button>
 
                               <a
